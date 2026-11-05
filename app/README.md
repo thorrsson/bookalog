@@ -148,6 +148,53 @@ The GitHub Actions workflow runs app/independent-reader/schema checks, disposabl
 
 Windows CI invokes `script/test-windows-package.ps1 -ExerciseRegistration`, which refuses to run on a local or self-hosted machine and refuses to replace an existing catalog installation. It creates a one-hour, non-exportable signing key, trusts its public certificate in the ephemeral runner's Local Machine Trusted People store, and signs only disposable copies outside the uploaded artifact directory. It installs the MSIX, activates a synthetic error callback through the OS, observes the packaged app window, closes only that executable's process IDs, and installs a higher-version fixture while checking package identity and a synthetic LocalState sentinel. Finally it removes the installation, trust certificate, private key and temporary packages and verifies the original unsigned artifact's digest. Failures in either testing or cleanup fail the job. No certificate, private key or test-signed package is published. This verifies installer plumbing, not Google OAuth or secure-storage behavior.
 
-These artifacts deliberately have **no Supabase configuration** and are not trusted production installers. The MSIX development publisher is `CN=Bookalog Catalog Development`; it cannot be normally installed without an explicitly trusted matching signer. Do not distribute CI test certificates or bypass Windows/macOS trust warnings for staff. For a real release, configure the project/public offline key, select the actual signing publisher, sign the MSIX with a matching trusted certificate, and sign/notarize the macOS app and image. Keep package identity/publisher stable across updates and increase `msix_config.msix_version` as well as the app version; MSIX does not derive its revision from Flutter's `+build` suffix. The ZIP alone still does not register Windows callbacks. Do not treat package checks or synthetic activation as proof of Google callbacks, Keychain/Credential Manager, file dialogs, screen-reader support or offline lifecycle behavior.
+These artifacts deliberately have **no Supabase configuration** and are not trusted production installers. The MSIX development publisher is `CN=Bookalog Catalog Development`; it cannot be normally installed without an explicitly trusted matching signer. Do not distribute CI test certificates or bypass Windows/macOS trust warnings for staff. Real releases are configured, signed and notarized by the [release process](#signed-desktop-releases). Keep package identity/publisher stable across updates; the MSIX version is derived from the app version as `MAJOR.MINOR.PATCH.0`, so every release must raise the app version. The ZIP alone still does not register Windows callbacks. Do not treat package checks or synthetic activation as proof of Google callbacks, Keychain/Credential Manager, file dialogs, screen-reader support or offline lifecycle behavior.
 
 Before a staff pilot, qualify an approved disposable project with real Google sign-in, membership denial/revocation, private covers, offline leases, token refresh, concurrent edits and each desktop's secure storage/file dialogs. Before a production release, also reconcile real source data/recipients, select residency and recovery targets, perform a database **and separate cover-object** restore drill into an isolated environment, verify counts/identities/cover references and representative file digests, and record observed costs. Retain the prior signed client and its matching trusted lease key for rollback. Database migrations must be assessed for backward compatibility; restoring a database is not a client-update rollback and can lose subsequent catalog edits. Never roll back to a compromised key or claim the unsigned build archives satisfy these gates.
+
+## Signed desktop releases
+
+Releases are cut from `main` by GitHub Actions. Open **Actions → Desktop release → Run workflow** and enter a plain `MAJOR.MINOR.PATCH` version such as `1.1.0`; Apple bundle and MSIX versions must be numeric, so pre-release suffixes are rejected. Release Please opens a release PR that updates `app/pubspec.yaml` (version and `+build`), `.release-please-manifest.json` and `app/CHANGELOG.md`. The workflow dispatches CI on that PR, waits for it to pass and enables auto-merge; required reviews and branch protection still apply. Approving the release PR also re-runs this step.
+
+After the merge, Release Please tags `desktop-v<version>` and creates a draft release, then dispatches [Desktop release build](../.github/workflows/desktop-release.yml) on the tag. (Tags created with the workflow token don't trigger tag-push workflows, and a `release` environment limited to `desktop-v*` tags would reject a build running from `main`.) The build checks that the tag matches the app version and is on the default branch, then:
+
+- **macOS:** builds with the hosted configuration, signs nested code and the app with the Hardened Runtime and the Developer ID provisioning profile, notarizes and staples the disk image and app, checks them with Gatekeeper, launches the signed app, and produces `Bookalog-Catalog-<version>-macos.dmg` and `.zip`.
+- **Windows:** builds `Bookalog-Catalog-<version>-windows.zip`. When `WINDOWS_CERTIFICATE` is set it also creates, signs (SHA-256, timestamped) and checks `Bookalog-Catalog-<version>-windows.msix` with the certificate's subject as publisher. Without one it warns and ships only the ZIP, which doesn't register the `com.bookalog.catalog` callback and triggers SmartScreen.
+
+Every file gets a `.sha256` checksum, which the release job verifies before uploading to the draft and publishing it. If a build fails, rerun **Desktop release build** on the tag, or push the tag again:
+
+```sh
+git tag desktop-v1.1.0 && git push origin desktop-v1.1.0
+```
+
+Release Please uses Conventional Commits for the changelog: `fix:` is a patch, `feat:` a minor, and `!` or `BREAKING CHANGE:` a major release.
+
+**Repository setup.** Enable **Allow GitHub Actions to create and approve pull requests** and **Allow auto-merge**, and create a `release` environment limited to `desktop-v*` tags with these values:
+
+| Name | Kind | Value |
+| --- | --- | --- |
+| `MACOS_CERTIFICATE_P12` | secret | Developer ID Application certificate and private key, `.p12`, base64. |
+| `MACOS_CERTIFICATE_PASSWORD` | secret | Its export password. |
+| `MACOS_SIGNING_IDENTITY` | secret | `Developer ID Application: Name (TEAMID)` |
+| `MACOS_TEAM_ID` | secret | The 10-character Team ID. |
+| `MACOS_PROVISIONING_PROFILE` | secret | Developer ID provisioning profile for `com.bookalog.bookalogCatalog` granting `keychain-access-groups`, base64. Signed sessions live in the data protection keychain, which needs it. |
+| `NOTARY_API_KEY_P8` | secret | App Store Connect `AuthKey_<KEY_ID>.p8`, base64. |
+| `NOTARY_API_KEY_ID`, `NOTARY_API_ISSUER_ID` | secret | The key's ID and issuer ID. |
+| `WINDOWS_CERTIFICATE` | secret, optional | Code-signing `.pfx`, base64. |
+| `WINDOWS_CERTIFICATE_PASSWORD` | secret, optional | Its password. |
+| `SUPABASE_URL` | variable | The production `https://` project URL. |
+| `SUPABASE_PUBLISHABLE_KEY` | variable | The project's publishable key. |
+| `OFFLINE_LEASE_PUBLIC_KEY` | variable, optional | The pinned lease verification key; without it releases are online-only. |
+
+Put these in a gitignored `.env` at the repository root (files may be given as paths, relative to the `.env` or from `~/`), then, signed in to `gh` as a repository admin:
+
+```sh
+bash script/macos/push-release-secrets.sh --dry-run   # checks everything, changes nothing
+bash script/macos/push-release-secrets.sh
+```
+
+Nothing is uploaded until every value passes: the `.p12` opens and holds an unexpired identity named by `MACOS_SIGNING_IDENTITY`, Apple accepts the API key (when `notarytool` is installed), the profile matches the team and bundle ID and isn't expired, any Windows certificate holds an unexpired code-signing key, and `SUPABASE_URL` uses HTTPS.
+
+**Local macOS releases.** `bash script/macos/release.sh` runs the app tests, builds, signs and notarizes into `.cache/release/`. It uses the first `Developer ID Application` identity in the keychain, or `BOOKALOG_SIGNING_IDENTITY` (`-` forces ad hoc signing). Set `BOOKALOG_PROVISIONING_PROFILE` to the profile's path and `SUPABASE_URL`/`SUPABASE_PUBLISHABLE_KEY` (and optionally `OFFLINE_LEASE_PUBLIC_KEY`). Notarization credentials are tried in order: `BOOKALOG_NOTARY_PROFILE` (a `notarytool store-credentials` keychain profile), the `NOTARY_API_KEY_*` values, then `BOOKALOG_APPLE_ID` with an app-specific `BOOKALOG_APPLE_PASSWORD`. Without an identity or credentials it warns and produces an ad hoc or unnotarized build; `BOOKALOG_REQUIRE_NOTARIZATION=1` and `BOOKALOG_REQUIRE_CONFIGURATION=1` make those failures, as in CI. `BOOKALOG_SKIP_TESTS=1` skips the tests. `bash script/macos/launch-check.sh [app]` checks that a built app stays running. On Windows, `bash script/windows/release.sh` does the same with `WINDOWS_CERTIFICATE`.
+
+Signed releases satisfy the signing and configuration gates above, not the staff-pilot and production qualification gates.

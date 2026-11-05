@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'appearance.dart';
 import 'auth_storage.dart';
 import 'catalog.dart';
 import 'relationships.dart';
@@ -37,6 +38,7 @@ bool get isSupabaseConfigured =>
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  final appearance = await AppearanceController.restore();
   Object? startupError;
   OfflineCatalogCache? offlineCache;
   if (isSupabaseConfigured) {
@@ -66,22 +68,44 @@ Future<void> main() async {
       startupError = error;
     }
   }
-  runApp(BookalogApp(startupError: startupError, offlineCache: offlineCache));
+  runApp(
+    BookalogApp(
+      startupError: startupError,
+      offlineCache: offlineCache,
+      appearance: appearance,
+    ),
+  );
 }
 
 class BookalogApp extends StatelessWidget {
-  const BookalogApp({super.key, this.startupError, this.offlineCache});
+  const BookalogApp({
+    super.key,
+    this.startupError,
+    this.offlineCache,
+    this.appearance,
+  });
 
   final Object? startupError;
   final OfflineCatalogCache? offlineCache;
+  final AppearanceController? appearance;
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    Widget app(ThemeMode mode) => MaterialApp(
       title: 'Bookalog',
       theme: buildBookalogTheme(Brightness.light),
       darkTheme: buildBookalogTheme(Brightness.dark),
+      themeMode: mode,
       home: AuthGate(startupError: startupError, offlineCache: offlineCache),
+    );
+    final controller = appearance;
+    if (controller == null) return app(ThemeMode.system);
+    return AppearanceScope(
+      controller: controller,
+      child: ValueListenableBuilder(
+        valueListenable: controller,
+        builder: (context, mode, _) => app(mode),
+      ),
     );
   }
 }
@@ -1026,6 +1050,11 @@ class _CatalogScreenState extends State<CatalogScreen>
         await _manageMembers();
       case 'signout':
         await _signOut();
+      default:
+        if (action.startsWith('appearance:') && mounted) {
+          await AppearanceScope.maybeOf(context)
+              ?.select(AppearanceController.parse(action.substring(11)));
+        }
     }
   }
 
@@ -1165,6 +1194,25 @@ class _CatalogScreenState extends State<CatalogScreen>
               ],
             ),
           ),
+          if (AppearanceScope.maybeOf(context) case final appearance?)
+            Container(
+              padding: const EdgeInsets.fromLTRB(18, 12, 12, 12),
+              decoration: BoxDecoration(
+                border: Border(top: BorderSide(color: palette.hairline)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Appearance',
+                    style: Theme.of(context).textTheme.bodySmall
+                        ?.copyWith(color: palette.inkMuted),
+                  ),
+                  const SizedBox(height: 8),
+                  AppearanceSwitch(controller: appearance),
+                ],
+              ),
+            ),
           Container(
             padding: const EdgeInsets.fromLTRB(18, 12, 10, 12),
             decoration: BoxDecoration(
@@ -1293,6 +1341,17 @@ class _CatalogScreenState extends State<CatalogScreen>
                         value: 'members',
                         child: Text('Manage members'),
                       ),
+                    if (AppearanceScope.maybeOf(context)
+                        case final appearance?) ...[
+                      const PopupMenuDivider(),
+                      for (final entry in appearanceLabels.entries)
+                        CheckedPopupMenuItem(
+                          value: 'appearance:${entry.key.name}',
+                          checked: appearance.value == entry.key,
+                          child: Text(entry.value),
+                        ),
+                      const PopupMenuDivider(),
+                    ],
                     const PopupMenuItem(
                       value: 'signout',
                       child: Text('Sign out'),
@@ -1596,7 +1655,7 @@ class _RailItem extends StatelessWidget {
     final foreground = onTap == null && !selected
         ? palette.inkMuted.withAlpha(150)
         : selected
-        ? palette.onAccent
+        ? palette.accentInk
         : palette.ink;
     return Padding(
       padding: const EdgeInsets.only(bottom: 2),
@@ -1604,7 +1663,7 @@ class _RailItem extends StatelessWidget {
         selected: selected,
         button: true,
         child: Material(
-          color: selected ? palette.accent : Colors.transparent,
+          color: selected ? palette.selection : Colors.transparent,
           borderRadius: shelfRadius,
           child: InkWell(
             borderRadius: shelfRadius,
@@ -1637,7 +1696,9 @@ class _RailItem extends StatelessWidget {
                         '$count',
                         style: shelfMono.copyWith(
                           fontSize: 12,
-                          color: selected ? palette.onAccent : palette.inkMuted,
+                          color: selected
+                              ? palette.accentInk
+                              : palette.inkMuted,
                         ),
                       ),
                   ],
@@ -1781,7 +1842,7 @@ class _EditionDataSource extends DataTableSource {
             child: Text(
               edition.title,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w600),
+              style: const TextStyle(fontWeight: FontWeight.w500),
             ),
           ),
         ),
@@ -2007,12 +2068,9 @@ class _GalleryTileState extends State<_GalleryTile> {
               const SizedBox(height: 12),
               AnimatedContainer(
                 duration: const Duration(milliseconds: 160),
-                padding: EdgeInsets.symmetric(
-                  horizontal: selected ? 8 : 0,
-                  vertical: selected ? 6 : 0,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                 decoration: BoxDecoration(
-                  color: selected ? palette.accent : Colors.transparent,
+                  color: selected ? palette.selection : Colors.transparent,
                   borderRadius: shelfRadius,
                 ),
                 child: Column(
@@ -2025,7 +2083,7 @@ class _GalleryTileState extends State<_GalleryTile> {
                       style: textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.w700,
                         height: 1.25,
-                        color: selected ? palette.onAccent : palette.ink,
+                        color: selected ? palette.accentInk : palette.ink,
                       ),
                     ),
                     const SizedBox(height: 3),
@@ -2038,7 +2096,7 @@ class _GalleryTileState extends State<_GalleryTile> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: textTheme.bodySmall?.copyWith(
-                        color: selected ? palette.onAccent : palette.inkMuted,
+                        color: palette.inkMuted,
                       ),
                     ),
                   ],
@@ -2164,7 +2222,7 @@ class ReleaseCalendarView extends StatelessWidget {
             : '—';
         final selected = edition.id == selectedId;
         return Material(
-          color: selected ? palette.accent : Colors.transparent,
+          color: selected ? palette.selection : Colors.transparent,
           borderRadius: shelfRadius,
           child: InkWell(
             borderRadius: shelfRadius,
@@ -2187,7 +2245,7 @@ class ReleaseCalendarView extends StatelessWidget {
                       style: shelfMono.copyWith(
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
-                        color: selected ? palette.onAccent : palette.ink,
+                        color: selected ? palette.accentInk : palette.ink,
                       ),
                     ),
                   ),
@@ -2220,16 +2278,14 @@ class ReleaseCalendarView extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: textTheme.bodyLarge?.copyWith(
                             fontWeight: FontWeight.w600,
-                            color: selected ? palette.onAccent : null,
+                            color: selected ? palette.accentInk : null,
                           ),
                         ),
                         const SizedBox(height: 2),
                         Text(
                           '${edition.format} · ${edition.isbn ?? 'No ISBN'}',
                           style: textTheme.bodySmall?.copyWith(
-                            color: selected
-                                ? palette.onAccent
-                                : palette.inkMuted,
+                            color: palette.inkMuted,
                           ),
                         ),
                       ],
@@ -2262,7 +2318,7 @@ class _DetailPrompt extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Opacity(opacity: 0.5, child: const ShelfMark(size: 36)),
+            const ShelfMark(size: 36, muted: true),
             const SizedBox(height: 22),
             Text(
               'Select an edition to review its details.',

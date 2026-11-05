@@ -1,6 +1,6 @@
 /*
 THESIS: Every edition is a labelled stock item; the catalog reads like a well-kept distributor shelf, not a generic admin grid.
-OWN-WORLD: The 3 Little Sisters house palette: off-white stock and burgundy in daylight, deep navy and gold after dark, set in Figtree. ISBNs are set as real EAN-13 Bookland barcodes.
+OWN-WORLD: The 3 Little Sisters house palette: off-white stock and burgundy in daylight, warm graphite with lifted burgundy and dusty rose after dark, set in Figtree. ISBNs are set as real EAN-13 Bookland barcodes.
 STORY: Staff scan covers, narrow by status or view from the location index, and open a stock card holding the barcode label, facts, and actions.
 FIRST VIEWPORT: A location-index sidebar at left, a toolbar with search and the primary action, full-bleed 2:3 covers with label plates, and a stock card at right.
 FORM: Grounded direction 7 (Bookland label and distributor ledger); operate mode; direction seed 58901885.
@@ -20,6 +20,8 @@ class ShelfPalette extends ThemeExtension<ShelfPalette> {
     required this.hairline,
     required this.accent,
     required this.onAccent,
+    required this.accentInk,
+    required this.selection,
     required this.blankBoard,
   });
 
@@ -31,31 +33,42 @@ class ShelfPalette extends ThemeExtension<ShelfPalette> {
   final Color hairline;
   final Color accent;
   final Color onAccent;
+
+  /// Accent for text, icons and focus rings drawn on canvas, paper or selection.
+  final Color accentInk;
+
+  /// Quiet wash behind the current selection; text on it stays ink or accentInk.
+  final Color selection;
   final Color blankBoard;
 
-  // Brand: burgundy #65172D, gold #DAA428, navy #0F2B36, stone #D2D5D0.
+  // Brand burgundy #65172D anchors both modes. Neutrals are warm graphite so
+  // the burgundy reads as the only colour in the chrome.
   static const light = ShelfPalette(
-    canvas: Color(0xfff5f5f5),
-    rail: Color(0xffecebe6),
+    canvas: Color(0xfff7f6f4),
+    rail: Color(0xfff0eeeb),
     paper: Color(0xffffffff),
-    ink: Color(0xff1c2022),
-    inkMuted: Color(0xff585c55),
-    hairline: Color(0xffd2d5d0),
+    ink: Color(0xff1f1b1c),
+    inkMuted: Color(0xff6a6365),
+    hairline: Color(0xffe3dfdc),
     accent: Color(0xff65172d),
     onAccent: Color(0xffffffff),
-    blankBoard: Color(0xffe3e1da),
+    accentInk: Color(0xff65172d),
+    selection: Color(0xfff3e7ea),
+    blankBoard: Color(0xffe8e4e0),
   );
 
   static const dark = ShelfPalette(
-    canvas: Color(0xff0f2b36),
-    rail: Color(0xff0a2029),
-    paper: Color(0xff143541),
-    ink: Color(0xfff2f0ea),
-    inkMuted: Color(0xffa8b6b9),
-    hairline: Color(0xff25495a),
-    accent: Color(0xffdaa428),
-    onAccent: Color(0xff19181d),
-    blankBoard: Color(0xff1c4251),
+    canvas: Color(0xff1b1a1b),
+    rail: Color(0xff161516),
+    paper: Color(0xff222022),
+    ink: Color(0xffece7e8),
+    inkMuted: Color(0xffa39c9e),
+    hairline: Color(0xff343032),
+    accent: Color(0xff7e2a41),
+    onAccent: Color(0xffffffff),
+    accentInk: Color(0xffdda3af),
+    selection: Color(0xff362229),
+    blankBoard: Color(0xff2c292b),
   );
 
   static ShelfPalette of(BuildContext context) =>
@@ -71,6 +84,8 @@ class ShelfPalette extends ThemeExtension<ShelfPalette> {
     Color? hairline,
     Color? accent,
     Color? onAccent,
+    Color? accentInk,
+    Color? selection,
     Color? blankBoard,
   }) => ShelfPalette(
     canvas: canvas ?? this.canvas,
@@ -81,6 +96,8 @@ class ShelfPalette extends ThemeExtension<ShelfPalette> {
     hairline: hairline ?? this.hairline,
     accent: accent ?? this.accent,
     onAccent: onAccent ?? this.onAccent,
+    accentInk: accentInk ?? this.accentInk,
+    selection: selection ?? this.selection,
     blankBoard: blankBoard ?? this.blankBoard,
   );
 
@@ -96,6 +113,8 @@ class ShelfPalette extends ThemeExtension<ShelfPalette> {
       hairline: Color.lerp(hairline, other.hairline, t)!,
       accent: Color.lerp(accent, other.accent, t)!,
       onAccent: Color.lerp(onAccent, other.onAccent, t)!,
+      accentInk: Color.lerp(accentInk, other.accentInk, t)!,
+      selection: Color.lerp(selection, other.selection, t)!,
       blankBoard: Color.lerp(blankBoard, other.blankBoard, t)!,
     );
   }
@@ -131,10 +150,10 @@ ThemeData buildBookalogTheme(Brightness brightness) {
     onPrimaryContainer: palette.onAccent,
     secondary: palette.ink,
     onSecondary: palette.canvas,
-    secondaryContainer: palette.accent,
-    onSecondaryContainer: palette.onAccent,
-    tertiary: palette.accent,
-    onTertiary: palette.onAccent,
+    secondaryContainer: palette.selection,
+    onSecondaryContainer: palette.accentInk,
+    tertiary: palette.accentInk,
+    onTertiary: palette.canvas,
     error: error,
     onError: palette.canvas,
     surface: palette.canvas,
@@ -251,9 +270,7 @@ ThemeData buildBookalogTheme(Brightness brightness) {
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
-        foregroundColor: brightness == Brightness.light
-            ? palette.accent
-            : palette.ink,
+        foregroundColor: palette.accentInk,
         minimumSize: buttonSize,
         padding: const EdgeInsets.symmetric(horizontal: 10),
         shape: buttonShape,
@@ -273,12 +290,12 @@ ThemeData buildBookalogTheme(Brightness brightness) {
         side: WidgetStatePropertyAll(hairlineSide),
         backgroundColor: WidgetStateProperty.resolveWith(
           (states) => states.contains(WidgetState.selected)
-              ? palette.accent
+              ? palette.selection
               : palette.paper,
         ),
         foregroundColor: WidgetStateProperty.resolveWith(
           (states) => states.contains(WidgetState.selected)
-              ? palette.onAccent
+              ? palette.accentInk
               : palette.ink,
         ),
         visualDensity: VisualDensity.compact,
@@ -299,7 +316,7 @@ ThemeData buildBookalogTheme(Brightness brightness) {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: shelfRadius,
-        borderSide: BorderSide(color: palette.accent, width: 2),
+        borderSide: BorderSide(color: palette.accentInk, width: 1.5),
       ),
       hintStyle: TextStyle(color: palette.inkMuted),
       labelStyle: TextStyle(color: palette.inkMuted),
@@ -309,7 +326,7 @@ ThemeData buildBookalogTheme(Brightness brightness) {
     ),
     chipTheme: ChipThemeData(
       backgroundColor: palette.paper,
-      selectedColor: palette.accent.withAlpha(46),
+      selectedColor: palette.selection,
       side: hairlineSide,
       shape: const RoundedRectangleBorder(borderRadius: shelfRadius),
       labelStyle: text.bodySmall?.copyWith(
@@ -343,8 +360,8 @@ ThemeData buildBookalogTheme(Brightness brightness) {
       waitDuration: const Duration(milliseconds: 400),
     ),
     listTileTheme: ListTileThemeData(
-      selectedTileColor: palette.accent,
-      selectedColor: palette.onAccent,
+      selectedTileColor: palette.selection,
+      selectedColor: palette.accentInk,
       iconColor: palette.inkMuted,
       shape: const RoundedRectangleBorder(borderRadius: shelfRadius),
     ),
@@ -360,7 +377,7 @@ ThemeData buildBookalogTheme(Brightness brightness) {
       dividerThickness: 1,
       dataRowColor: WidgetStateProperty.resolveWith(
         (states) => states.contains(WidgetState.selected)
-            ? palette.accent.withAlpha(46)
+            ? palette.selection
             : states.contains(WidgetState.hovered)
             ? palette.rail
             : null,
@@ -382,7 +399,7 @@ ThemeData buildBookalogTheme(Brightness brightness) {
       radius: const Radius.circular(3),
       thumbColor: WidgetStatePropertyAll(palette.inkMuted.withAlpha(110)),
     ),
-    focusColor: palette.accent.withAlpha(90),
+    focusColor: palette.accentInk.withAlpha(60),
     hoverColor: palette.ink.withAlpha(14),
     splashFactory: NoSplash.splashFactory,
   );
@@ -459,9 +476,9 @@ class _BarcodePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     const total = _quietLeft + 95 + _quietRight;
     final module = size.width / total;
-    final digitHeight = module * 9;
-    final barBottom = size.height - digitHeight * 0.55;
-    final guardBottom = size.height - digitHeight * 0.1;
+    final digitHeight = module * 7.5;
+    final barBottom = size.height - digitHeight - module;
+    final guardBottom = size.height - digitHeight * 0.45;
     final paint = Paint()..color = const Color(0xff000000);
     for (var index = 0; index < modules.length; index++) {
       if (!modules[index]) continue;
@@ -569,9 +586,10 @@ class IsbnLabel extends StatelessWidget {
 
 /// Small barcode mark used as the product wordmark glyph.
 class ShelfMark extends StatelessWidget {
-  const ShelfMark({super.key, this.size = 22});
+  const ShelfMark({super.key, this.size = 22, this.muted = false});
 
   final double size;
+  final bool muted;
 
   @override
   Widget build(BuildContext context) {
@@ -582,7 +600,7 @@ class ShelfMark extends StatelessWidget {
       height: size,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: palette.accent,
+          color: muted ? palette.blankBoard : palette.accent,
           borderRadius: const BorderRadius.all(Radius.circular(3)),
         ),
         child: Padding(
@@ -594,7 +612,9 @@ class ShelfMark extends StatelessWidget {
               for (final width in widths)
                 SizedBox(
                   width: width * size / 22,
-                  child: ColoredBox(color: palette.onAccent),
+                  child: ColoredBox(
+                    color: muted ? palette.inkMuted : palette.onAccent,
+                  ),
                 ),
             ],
           ),

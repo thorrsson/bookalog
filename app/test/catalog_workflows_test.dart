@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:bookalog_catalog/appearance.dart';
 import 'package:bookalog_catalog/catalog.dart';
 import 'package:bookalog_catalog/main.dart';
 import 'package:bookalog_catalog/relationships.dart';
@@ -140,23 +141,79 @@ void main() {
     WidgetTester tester, {
     double width = 1280,
     OfflineCatalogCache? offlineCache,
+    AppearanceController? appearance,
   }) async {
     tester.view.physicalSize = Size(width, 1000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     addTearDown(() => tester.pumpWidget(const SizedBox.shrink()));
+    final screen = CatalogScreen(
+      client: repository.client,
+      repository: repository,
+      offlineCache: offlineCache,
+    );
     await tester.pumpWidget(
-      MaterialApp(
-        home: CatalogScreen(
-          client: repository.client,
-          repository: repository,
-          offlineCache: offlineCache,
-        ),
-      ),
+      appearance == null
+          ? MaterialApp(home: screen)
+          : AppearanceScope(
+              controller: appearance,
+              child: ValueListenableBuilder(
+                valueListenable: appearance,
+                builder: (context, mode, _) => MaterialApp(
+                  theme: ThemeData(brightness: Brightness.light),
+                  darkTheme: ThemeData(brightness: Brightness.dark),
+                  themeMode: mode,
+                  home: screen,
+                ),
+              ),
+            ),
     );
     await tester.pumpAndSettle();
   }
+
+  testWidgets('sidebar appearance switch applies and saves the choice', (
+    tester,
+  ) async {
+    final saved = <ThemeMode>[];
+    final appearance = AppearanceController(
+      ThemeMode.light,
+      (mode) async => saved.add(mode),
+    );
+    await openCatalog(tester, appearance: appearance);
+    BuildContext screen() => tester.element(find.byType(CatalogScreen));
+    expect(Theme.of(screen()).brightness, Brightness.light);
+
+    await tester.tap(find.byTooltip('Dark appearance'));
+    await tester.pumpAndSettle();
+
+    expect(appearance.value, ThemeMode.dark);
+    expect(saved, [ThemeMode.dark]);
+    expect(Theme.of(screen()).brightness, Brightness.dark);
+  });
+
+  testWidgets('compact tools menu offers appearance choices', (tester) async {
+    final appearance = AppearanceController();
+    await openCatalog(tester, width: 1020, appearance: appearance);
+    expect(find.byTooltip('Dark appearance'), findsNothing);
+
+    await tester.tap(find.byTooltip('Catalog tools'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.widgetWithText(CheckedPopupMenuItem<String>, 'Light'),
+    );
+    await tester.pumpAndSettle();
+
+    expect(appearance.value, ThemeMode.light);
+  });
+
+  testWidgets('appearance controls stay hidden without a scope', (
+    tester,
+  ) async {
+    await openCatalog(tester);
+    expect(find.text('Appearance'), findsNothing);
+    expect(find.byTooltip('Dark appearance'), findsNothing);
+  });
 
   testWidgets(
     'network fallback is read-only and denied access cannot resurface',

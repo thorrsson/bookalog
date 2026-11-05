@@ -2,7 +2,26 @@ import 'package:bookalog_catalog/design.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+double _contrast(Color a, Color b) {
+  final la = a.computeLuminance();
+  final lb = b.computeLuminance();
+  return (la > lb ? la + 0.05 : lb + 0.05) / (la > lb ? lb + 0.05 : la + 0.05);
+}
+
 void main() {
+  test('both palettes keep text at WCAG AA contrast', () {
+    for (final palette in [ShelfPalette.light, ShelfPalette.dark]) {
+      expect(_contrast(palette.onAccent, palette.accent), greaterThan(4.5));
+      expect(_contrast(palette.ink, palette.selection), greaterThan(4.5));
+      expect(_contrast(palette.accentInk, palette.selection), greaterThan(4.5));
+      expect(_contrast(palette.accentInk, palette.paper), greaterThan(4.5));
+      for (final surface in [palette.canvas, palette.rail, palette.paper]) {
+        expect(_contrast(palette.ink, surface), greaterThan(4.5));
+        expect(_contrast(palette.inkMuted, surface), greaterThan(4.5));
+      }
+    }
+  });
+
   test('encodes a valid ISBN-13 as 95 EAN-13 modules with guards', () {
     final modules = ean13Modules('9780306406157');
 

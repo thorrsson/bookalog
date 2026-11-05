@@ -39,6 +39,7 @@ dependencies:
   file_selector: ^1.1.0
   cryptography: ^2.7.0
   path_provider: ^2.1.5
+  shared_preferences: ^2.5.3
   bookalog_exchange:
     path: ../packages/catalog_exchange
   uuid: ^4.5.1

@@ -20,16 +20,28 @@ mkdir -p .cache/onix
 if [ ! -f "$archive" ]; then
   download="$archive.part.$$"
   trap 'rm -f "$download"' EXIT
-  curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
-    'https://www.editeur.org/files/ONIX%203/ONIX_BookProduct_3.0_XSDs+codes_Issue_75.zip' \
-    -o "$download"
-  actual="$(openssl dgst -sha256 "$download")"
-  actual="${actual##* }"
-  if [ "$actual" != "$expected" ]; then
-    echo "ONIX schema archive checksum changed; review the upstream release before updating the pin." >&2
+  for attempt in 1 2 3; do
+    if curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
+      --connect-timeout 10 --max-time 60 --max-filesize 10485760 \
+      --write-out 'ONIX schema response: HTTP %{http_code}, %{content_type}, %{size_download} bytes\n' \
+      'https://www.editeur.org/files/ONIX%203/ONIX_BookProduct_3.0_XSDs+codes_Issue_75.zip' \
+      -o "$download"; then
+      actual="$(openssl dgst -sha256 "$download")"
+      actual="${actual##* }"
+      if [ "$actual" = "$expected" ]; then
+        mv "$download" "$archive"
+        break
+      fi
+      echo "ONIX schema download $attempt/3 has an unrecognized checksum: $actual" >&2
+    else
+      echo "ONIX schema download $attempt/3 failed." >&2
+    fi
+    if [ "$attempt" -lt 3 ]; then sleep "$((attempt * 2))"; fi
+  done
+  if [ ! -f "$archive" ]; then
+    echo "Could not obtain the pinned ONIX schema after 3 attempts. Review the upstream response before changing the pin." >&2
     exit 1
   fi
-  mv "$download" "$archive"
 fi
 actual="$(openssl dgst -sha256 "$archive")"
 actual="${actual##* }"

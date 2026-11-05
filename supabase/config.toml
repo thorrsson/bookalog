@@ -1,0 +1,6 @@
+project_id = "bookalog"
+
+[functions.offline-lease]
+# The handler verifies every bearer token with Supabase Auth and checks membership.
+# This supports both legacy and asymmetric Auth signing keys.
+verify_jwt = false

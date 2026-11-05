@@ -60,3 +60,19 @@ fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
+
+# Comparative spikes
+node_modules/
+.cache/
+spikes/fixtures/generated/
+**/target/
+**/dist/
+**/.dart_tool/
+**/build/
+.env
+.env.*
+!.env.example
+supabase/.temp/
+supabase/.branches/
+spikes/flutter/assets/catalog.json
+spikes/tauri/public/catalog.json

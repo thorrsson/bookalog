@@ -68,9 +68,16 @@ jobs:
       - name: Build unconfigured desktop bundle
         shell: bash
         run: bash script/build-desktop.sh "${{ matrix.target }}"
+      - name: Verify isolated Windows installation and callback activation
+        if: matrix.target == 'windows'
+        shell: powershell
+        run: .\script\test-windows-package.ps1 -ExerciseRegistration
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: bookalog-${{ matrix.target }}-unsigned
-          path: .cache/desktop/bookalog-${{ matrix.target }}-unsigned.zip
+          path: |
+            .cache/desktop/bookalog-${{ matrix.target }}-unsigned.zip
+            .cache/desktop/bookalog-${{ matrix.target }}-unsigned.dmg
+            .cache/desktop/bookalog-${{ matrix.target }}-unsigned.msix
           if-no-files-found: error
           retention-days: 7

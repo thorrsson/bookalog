@@ -8,6 +8,7 @@ fi
 
 case "$1" in
   macos)
+    package_extension=dmg
     if [ "$(uname -s)" != Darwin ]; then
       echo "The macOS build requires a macOS host with Xcode." >&2
       exit 1
@@ -30,8 +31,10 @@ case "$1" in
     ditto -c -k --sequesterRsrc --keepParent \
       "$bundle" \
       .cache/desktop/bookalog-macos-unsigned.zip
+    ruby script/package-macos.rb
     ;;
   windows)
+    package_extension=msix
     case "$(uname -s)" in
       MINGW*|MSYS*) ;;
       *) echo "The Windows build requires Git Bash on Windows with Visual Studio C++ tools." >&2; exit 1 ;;
@@ -47,6 +50,11 @@ case "$1" in
     rm -f .cache/desktop/bookalog-windows-unsigned.zip
     (cd app/build/windows/x64/runner/Release && 7z a -tzip "$archive" .)
     test -s "$archive"
+    (cd app && "${DART_BIN:-dart}" run msix:create \
+      --build-windows false --sign-msix false --install-certificate false \
+      --output-path ../.cache/desktop --output-name bookalog-windows-unsigned)
+    test -s .cache/desktop/bookalog-windows-unsigned.msix
+    powershell.exe -NoProfile -NonInteractive -File script/test-windows-package.ps1
     ;;
   *)
     echo "Unsupported desktop target: $1. Choose macos or windows." >&2
@@ -54,4 +62,5 @@ case "$1" in
     ;;
 esac
 echo "Unsigned, unconfigured build check: .cache/desktop/bookalog-$1-unsigned.zip"
-echo "Not a signed installer or a qualified release; no hosted configuration or credentials are embedded."
+echo "Unsigned installer package: .cache/desktop/bookalog-$1-unsigned.$package_extension"
+echo "Not a signed/notarized or qualified release; no hosted configuration or credentials are embedded."

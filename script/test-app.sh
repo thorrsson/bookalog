@@ -8,6 +8,7 @@ export BOOKALOG_ONIX_TEST_EXPORT="$lease_vector.onix"
 trap 'rm -f "$lease_vector" "$BOOKALOG_EXCHANGE_TEST_EXPORT" "$BOOKALOG_EXCHANGE_TEST_EXPORT.json" "$BOOKALOG_ONIX_TEST_EXPORT" "$BOOKALOG_ONIX_TEST_EXPORT.json" "$BOOKALOG_ONIX_TEST_EXPORT.sample.xml" "$BOOKALOG_ONIX_TEST_EXPORT.external.xml"' EXIT
 bash ../script/test-offline-lease.sh
 ruby ../script/test-onix-validator.rb
+ruby ../script/test-release-tooling.rb
 "${FLUTTER_BIN:-flutter}" analyze
 "${FLUTTER_BIN:-flutter}" test "$@"
 if [ -f "$BOOKALOG_EXCHANGE_TEST_EXPORT" ]; then

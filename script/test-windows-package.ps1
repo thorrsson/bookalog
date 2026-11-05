@@ -1,4 +1,12 @@
-param([switch]$ExerciseRegistration)
+# Checks an MSIX package before it is shared. With no arguments it checks the
+# unsigned CI build-check package; the release build passes the signed package,
+# the publisher from its certificate and -Signed.
+param(
+    [string]$Package = "",
+    [string]$Publisher = "CN=Bookalog Catalog Development",
+    [switch]$Signed,
+    [switch]$ExerciseRegistration
+)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -6,9 +14,12 @@ if ($env:OS -ne 'Windows_NT') { throw 'MSIX checks require Windows.' }
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 
 $root = Split-Path $PSScriptRoot -Parent
-$package = Join-Path $root '.cache\desktop\bookalog-windows-unsigned.msix'
+# PowerShell names are case-insensitive: $package and $publisher are the parameters.
+if (-not $package) { $package = Join-Path $root '.cache\desktop\bookalog-windows-unsigned.msix' }
+if ($Signed -and $ExerciseRegistration) {
+    throw 'The registration test re-signs a copy of the unsigned build-check package; it cannot take a signed package.'
+}
 $identity = 'com.bookalog.catalog'
-$publisher = 'CN=Bookalog Catalog Development'
 $protocol = 'com.bookalog.catalog'
 $originalHash = (Get-FileHash -LiteralPath $package -Algorithm SHA256).Hash
 $archive = [IO.Compression.ZipFile]::OpenRead($package)
@@ -34,7 +45,7 @@ try {
     $packageIdentity = $manifest.SelectSingleNode('/p:Package/p:Identity', $namespaces)
     if ($null -eq $packageIdentity -or $packageIdentity.Name -cne $identity -or
         $packageIdentity.Publisher -cne $publisher -or $packageIdentity.ProcessorArchitecture -ne 'x64') {
-        throw 'MSIX identity, development publisher or architecture is incorrect.'
+        throw "MSIX identity, publisher ($publisher) or architecture is incorrect."
     }
     $applications = @($manifest.SelectNodes('/p:Package/p:Applications/p:Application', $namespaces))
     if ($applications.Count -ne 1 -or $applications[0].Executable -cne 'bookalog_catalog.exe') {
@@ -48,12 +59,24 @@ try {
         $entry = $archive.GetEntry($file)
         if ($null -eq $entry -or $entry.Length -eq 0) { throw "MSIX is missing $file." }
     }
-    if ($null -ne $archive.GetEntry('AppxSignature.p7x')) {
+    if ($Signed -and $null -eq $archive.GetEntry('AppxSignature.p7x')) {
+        throw 'The release package is not signed.'
+    }
+    if (-not $Signed -and $null -ne $archive.GetEntry('AppxSignature.p7x')) {
         throw 'The build-check artifact must remain unsigned.'
     }
     $baseVersion = [version]$packageIdentity.Version
 } finally {
     $archive.Dispose()
+}
+if ($Signed) {
+    $signature = Get-AuthenticodeSignature -LiteralPath $package
+    if ($signature.Status -ne 'Valid' -or $null -eq $signature.SignerCertificate -or
+        $signature.SignerCertificate.Subject -cne $publisher) {
+        throw "MSIX signature is $($signature.Status), not a valid signature from $publisher."
+    }
+    Write-Host 'Signed MSIX identity, signature, executable, runtime and callback declaration verified.'
+    exit 0
 }
 Write-Host 'Unsigned MSIX identity, executable, runtime and callback declaration verified.'
 if (-not $ExerciseRegistration) { exit 0 }

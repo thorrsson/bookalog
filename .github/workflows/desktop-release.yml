@@ -1,0 +1,272 @@
+name: Desktop release build
+
+# Publishes a desktop release: a signed and notarized disk image and ZIP for
+# macOS, and a portable ZIP plus, with a code-signing certificate, a signed
+# MSIX installer for Windows, on a GitHub release.
+#
+# Desktop release (release-please.yml) tags the merged version PR
+# desktop-v<version> with a draft release, then dispatches this workflow on
+# that tag. To retry, run this workflow from the Actions tab and choose the
+# tag under "Use workflow from", or push the tag again.
+"on":
+  push:
+    tags: ['desktop-v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    name: Check version
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check the tag matches the app version
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          REF_TYPE: ${{ github.ref_type }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ "$REF_TYPE" != tag || "$RELEASE_TAG" != desktop-v* ]]; then
+            echo "::error::The desktop release build runs only on a desktop-v* tag. Choose one under \"Use workflow from\"."
+            exit 1
+          fi
+          version="$(ruby script/app-version.rb)"
+          if [[ "$RELEASE_TAG" != "desktop-v$version" ]]; then
+            echo "::error::Tag $RELEASE_TAG does not match version $version in app/pubspec.yaml."
+            exit 1
+          fi
+          # Only release commits already on the default branch. "behind" means
+          # the tagged commit is an ancestor of it.
+          tag_sha="$(git rev-parse HEAD)"
+          status="$(gh api "repos/$GITHUB_REPOSITORY/compare/$DEFAULT_BRANCH...$tag_sha" --jq .status)"
+          if [[ "$status" != identical && "$status" != behind ]]; then
+            echo "::error::$RELEASE_TAG points at $tag_sha, which is not on $DEFAULT_BRANCH. Merge it to $DEFAULT_BRANCH first, then retry the release."
+            exit 1
+          fi
+          echo "Building Bookalog Catalog $version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  macos:
+    name: macOS (signed and notarized)
+    needs: version
+    runs-on: macos-15
+    timeout-minutes: 60
+    # The Developer ID private key and the notarization key only exist inside
+    # this environment, which only desktop-v* tags can deploy to. The version
+    # job also refuses a tag whose commit isn't on the default branch, but
+    # that check lives in the tagged commit's own copy of this file, so it
+    # stops mistakes, not someone who can push tags and write the workflow
+    # they point at. Against that, give the environment a required reviewer,
+    # or restrict who can create desktop-v* tags with a tag ruleset.
+    environment: release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: '3.47.9'
+          channel: stable
+      # Before the certificate is imported, so dependencies are fetched
+      # without the signing key present.
+      - name: Fetch dependencies
+        working-directory: app
+        run: flutter pub get
+
+      # The certificate lives in a throwaway keychain rather than the login one:
+      # a runner's login keychain is unlocked but not visible to codesign's
+      # search list, and a dedicated keychain is deleted with the runner.
+      - name: Import the Developer ID certificate
+        env:
+          CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          PROVISIONING_PROFILE: ${{ secrets.MACOS_PROVISIONING_PROFILE }}
+        run: |
+          set -euo pipefail
+          keychain="$RUNNER_TEMP/build.keychain-db"
+          keychain_password="$(uuidgen)"
+          certificate="$RUNNER_TEMP/certificate.p12"
+
+          if [[ -z "$CERTIFICATE_P12" || -z "$CERTIFICATE_PASSWORD" ]]; then
+            echo "error: MACOS_CERTIFICATE_P12 and MACOS_CERTIFICATE_PASSWORD must both be set in the release environment" >&2
+            exit 1
+          fi
+          if ! printf '%s' "$CERTIFICATE_P12" | base64 --decode > "$certificate"; then
+            echo "error: MACOS_CERTIFICATE_P12 is not valid base64" >&2
+            exit 1
+          fi
+          if openssl pkcs12 -in "$certificate" -passin env:CERTIFICATE_PASSWORD -noout 2>/dev/null; then
+            :
+          elif openssl pkcs12 -legacy -in "$certificate" -passin env:CERTIFICATE_PASSWORD -noout 2>/dev/null; then
+            echo "error: MACOS_CERTIFICATE_P12 uses legacy RC2 encryption, which the runner cannot reliably import" >&2
+            echo "Keychain Access exports use RC2. Set the secrets with script/macos/push-release-secrets.sh, which repackages it with 3DES" >&2
+            exit 1
+          else
+            echo "error: MACOS_CERTIFICATE_P12 does not decode to a valid PKCS#12 file, or MACOS_CERTIFICATE_PASSWORD is incorrect" >&2
+            echo "Export the identity and private key from Keychain Access as .p12, then set the secrets with script/macos/push-release-secrets.sh" >&2
+            exit 1
+          fi
+
+          if [[ -z "$PROVISIONING_PROFILE" ]]; then
+            echo "error: MACOS_PROVISIONING_PROFILE must be set in the release environment" >&2
+            exit 1
+          fi
+          if ! printf '%s' "$PROVISIONING_PROFILE" | base64 --decode > "$RUNNER_TEMP/bookalog.provisionprofile"; then
+            echo "error: MACOS_PROVISIONING_PROFILE is not valid base64" >&2
+            exit 1
+          fi
+
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$certificate" -f pkcs12 -k "$keychain" \
+            -P "$CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/security
+          # Without this codesign blocks on a GUI prompt that nobody can answer.
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$keychain_password" "$keychain" > /dev/null
+          # Prepended to the existing search list, one keychain path per word.
+          # shellcheck disable=SC2046
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          rm -f "$certificate"
+
+          security find-identity -v -p codesigning "$keychain"
+
+      - name: Build, sign, notarize
+        env:
+          BOOKALOG_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+          BOOKALOG_TEAM_ID: ${{ secrets.MACOS_TEAM_ID }}
+          BOOKALOG_PROVISIONING_PROFILE: ${{ runner.temp }}/bookalog.provisionprofile
+          NOTARY_API_KEY_ID: ${{ secrets.NOTARY_API_KEY_ID }}
+          NOTARY_API_ISSUER_ID: ${{ secrets.NOTARY_API_ISSUER_ID }}
+          NOTARY_API_KEY_P8: ${{ secrets.NOTARY_API_KEY_P8 }}
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
+          OFFLINE_LEASE_PUBLIC_KEY: ${{ vars.OFFLINE_LEASE_PUBLIC_KEY }}
+          BOOKALOG_REQUIRE_NOTARIZATION: '1'
+          BOOKALOG_REQUIRE_CONFIGURATION: '1'
+          # The catalog checks already passed on this commit's release PR.
+          BOOKALOG_SKIP_TESTS: '1'
+        run: bash script/macos/release.sh
+
+      - name: Discard the signing key
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/certificate.p12" "$RUNNER_TEMP/bookalog.provisionprofile"
+          security delete-keychain "$RUNNER_TEMP/build.keychain-db" || true
+
+      # The signed app runs under the Hardened Runtime and its provisioning
+      # profile, which the unsigned build tested by ci.yml does not, so check
+      # it still starts.
+      - name: Launch the signed app
+        run: bash script/macos/launch-check.sh
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bookalog-release-macos
+          if-no-files-found: error
+          path: |
+            .cache/release/*.dmg
+            .cache/release/*.zip
+            .cache/release/*.sha256
+
+  windows:
+    name: Windows
+    needs: version
+    runs-on: windows-2022
+    timeout-minutes: 60
+    environment: release
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: '3.47.9'
+          channel: stable
+      - name: Build and sign
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
+          OFFLINE_LEASE_PUBLIC_KEY: ${{ vars.OFFLINE_LEASE_PUBLIC_KEY }}
+          BOOKALOG_REQUIRE_CONFIGURATION: '1'
+          BOOKALOG_SKIP_TESTS: '1'
+        run: |
+          set -euo pipefail
+          if [[ -z "$WINDOWS_CERTIFICATE" ]]; then
+            echo "::warning::No Windows signing certificate is configured, so this release has no MSIX installer, only the portable ZIP."
+          fi
+          bash script/windows/release.sh
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bookalog-release-windows
+          if-no-files-found: error
+          path: |
+            .cache/release/*.zip
+            .cache/release/*.msix
+            .cache/release/*.sha256
+
+  release:
+    name: Publish release
+    needs: [version, macos, windows]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: artifacts
+          merge-multiple: true
+      # Uploaded to a draft first and published once every file is there, so
+      # nobody downloads from a half-uploaded release. A re-run replaces the
+      # files of the draft or release already made.
+      - name: Publish the installers
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          base="Bookalog-Catalog-$VERSION"
+          for file in "$base-macos.dmg" "$base-macos.zip" "$base-windows.zip"; do
+            for expected in "$file" "$file.sha256"; do
+              [[ -s "artifacts/$expected" ]] || { echo "::error::Missing $expected"; exit 1; }
+            done
+          done
+          (cd artifacts && sha256sum -c ./*.sha256)
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" artifacts/* --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$RELEASE_TAG" artifacts/* \
+              --repo "$GITHUB_REPOSITORY" \
+              --draft \
+              --title "Bookalog Catalog $VERSION" \
+              --generate-notes \
+              --verify-tag
+          fi
+          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false
+          url="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json url --jq .url)"
+          echo "Published $url"
+          echo "### Published [Bookalog Catalog $VERSION]($url)" >> "$GITHUB_STEP_SUMMARY"

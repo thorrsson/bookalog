@@ -103,8 +103,8 @@ msix_config:
   publisher_display_name: Bookalog
   identity_name: com.bookalog.catalog
   publisher: CN=Bookalog Catalog Development
-  msix_version: 1.0.0.0
   protocol_activation: com.bookalog.catalog
   capabilities: internetClient
-  sign_msix: false
+  # Signing is chosen per build with --sign-msix: msix lets sign_msix: false
+  # here override --sign-msix true, which would leave releases unsigned.
   install_certificate: false

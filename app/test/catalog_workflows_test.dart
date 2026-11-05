@@ -274,7 +274,8 @@ void main() {
     await tester.tap(find.text('Gallery'));
     await tester.pumpAndSettle();
     expect(find.text('1 matching edition'), findsOneWidget);
-    expect(find.text('The Quiet Atlas'), findsOneWidget);
+    expect(find.text('The Quiet Atlas'), findsWidgets);
+    expect(find.text('The Other Atlas'), findsNothing);
     await tester.tap(find.text('Release calendar'));
     await tester.pumpAndSettle();
     expect(find.text('The Other Atlas'), findsNothing);
@@ -287,7 +288,14 @@ void main() {
       await tester.tap(find.text('The Quiet Atlas'));
       await tester.pumpAndSettle();
       expect(find.byType(AlertDialog), findsOneWidget);
-      expect(find.text('The Quiet Atlas'), findsNWidgets(2));
+      expect(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.text('The Quiet Atlas'),
+        ),
+        findsWidgets,
+      );
+      expect(find.text('Edit edition'), findsOneWidget);
       await tester.tap(find.text('Close'));
       await tester.pumpAndSettle();
     },

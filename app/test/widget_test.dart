@@ -381,8 +381,8 @@ void main() {
         ),
       );
 
-      expect(find.text('2027 · year only'), findsOneWidget);
-      expect(find.text('2027-03 · month only'), findsOneWidget);
+      expect(find.text('March 2027'), findsOneWidget);
+      expect(find.text('2027 · month not set'), findsOneWidget);
       expect(find.text('Date not set'), findsOneWidget);
       await tester.tap(find.text('Month release'));
       expect(selected, ['month']);

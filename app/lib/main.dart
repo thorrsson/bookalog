@@ -1,11 +1,3 @@
-/*
-THESIS: A publication register keeps works, editions, and their current access state legible without turning the catalog into an admin console.
-OWN-WORLD: Native Material surfaces in pressroom white and deep ink, with registration blue for navigation and a restrained chartreuse mark for active selection.
-STORY: Staff authenticate with Google, see whether their membership is approved, then search and edit the catalog according to their server-assigned role.
-FIRST VIEWPORT: A compact app bar anchors search and connection state; the catalog occupies the working area, with an edition list and a contextual detail pane on wide windows.
-FORM: Grounded direction 5, paired with grounded surface structure 3; operate mode; surface seed e14b098c and direction seed 7d400113.
-*/
-
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -17,6 +9,7 @@ import 'catalog.dart';
 import 'relationships.dart';
 import 'offline_cache.dart';
 import 'exchange_screen.dart';
+import 'design.dart';
 
 const supabaseUrl = String.fromEnvironment('SUPABASE_URL');
 const supabasePublishableKey = String.fromEnvironment(
@@ -41,9 +34,6 @@ bool get isSupabaseConfigured =>
     Uri.tryParse(supabaseUrl)?.scheme == 'https' &&
     Uri.tryParse(supabaseUrl)?.host.isNotEmpty == true &&
     supabasePublishableKey.isNotEmpty;
-
-const _registrationBlue = Color(0xff315f9c);
-const _pressroomChartreuse = Color(0xffc7d338);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -89,22 +79,8 @@ class BookalogApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Bookalog',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: _registrationBlue,
-          tertiary: _pressroomChartreuse,
-          surface: const Color(0xfff7f8f5),
-        ),
-        useMaterial3: true,
-      ),
-      darkTheme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: _registrationBlue,
-          tertiary: _pressroomChartreuse,
-          brightness: Brightness.dark,
-        ),
-        useMaterial3: true,
-      ),
+      theme: buildBookalogTheme(Brightness.light),
+      darkTheme: buildBookalogTheme(Brightness.dark),
       home: AuthGate(startupError: startupError, offlineCache: offlineCache),
     );
   }
@@ -178,26 +154,83 @@ class SetupMessage extends StatelessWidget {
   final String message;
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Bookalog')),
-    body: Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 560),
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: Theme.of(context).textTheme.headlineMedium),
-              const SizedBox(height: 16),
-              SelectableText(message),
-            ],
+  Widget build(BuildContext context) => _EntryPanel(
+    children: [
+      Text(title, style: Theme.of(context).textTheme.headlineSmall),
+      const SizedBox(height: 12),
+      SelectableText(message),
+    ],
+  );
+}
+
+class _Wordmark extends StatelessWidget {
+  const _Wordmark();
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      const ShelfMark(),
+      const SizedBox(width: 10),
+      Text(
+        'Bookalog',
+        style: Theme.of(context).textTheme.titleMedium
+            ?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.2),
+      ),
+    ],
+  );
+}
+
+class _EntryPanel extends StatelessWidget {
+  const _EntryPanel({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = ShelfPalette.of(context);
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 460),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: palette.paper,
+                  borderRadius: const BorderRadius.all(Radius.circular(8)),
+                  border: Border.all(color: palette.hairline),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x14000000),
+                      offset: Offset(0, 8),
+                      blurRadius: 24,
+                    ),
+                  ],
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(32, 28, 32, 32),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Align(
+                        alignment: Alignment.centerLeft,
+                        child: _Wordmark(),
+                      ),
+                      const SizedBox(height: 28),
+                      ...children,
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class SignInScreen extends StatefulWidget {
@@ -232,56 +265,36 @@ class _SignInScreenState extends State<SignInScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    body: SafeArea(
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 560),
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Bookalog',
-                  style: Theme.of(context).textTheme.headlineLarge,
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Publishing catalog',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Sign in with your Google Workspace account. Access is granted only to approved catalog members.',
-                ),
-                const SizedBox(height: 24),
-                FilledButton.icon(
-                  onPressed: _busy ? null : _signIn,
-                  icon: const Icon(Icons.open_in_browser),
-                  label: Text(
-                    _busy ? 'Opening Google sign-in…' : 'Continue with Google',
-                  ),
-                ),
-                if (_error case final error?) ...[
-                  const SizedBox(height: 16),
-                  Semantics(
-                    liveRegion: true,
-                    child: Text(
-                      error,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
+  Widget build(BuildContext context) => _EntryPanel(
+    children: [
+      Text(
+        'Publishing catalog',
+        style: Theme.of(context).textTheme.headlineSmall,
+      ),
+      const SizedBox(height: 10),
+      Text(
+        'Sign in with your Google Workspace account. Access is granted only to approved catalog members.',
+        style: Theme.of(context).textTheme.bodyMedium
+            ?.copyWith(color: ShelfPalette.of(context).inkMuted),
+      ),
+      const SizedBox(height: 24),
+      FilledButton.icon(
+        style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
+        onPressed: _busy ? null : _signIn,
+        icon: const Icon(Icons.open_in_browser, size: 18),
+        label: Text(_busy ? 'Opening Google sign-in…' : 'Continue with Google'),
+      ),
+      if (_error case final error?) ...[
+        const SizedBox(height: 16),
+        Semantics(
+          liveRegion: true,
+          child: Text(
+            error,
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
           ),
         ),
-      ),
-    ),
+      ],
+    ],
   );
 }
 
@@ -870,6 +883,7 @@ class _CatalogScreenState extends State<CatalogScreen>
                   width: 520,
                   child: _EditionDetails(
                     edition: currentEdition,
+                    showTitle: false,
                     repository: _repository,
                     online: !_showingCachedSnapshot && _error == null,
                     onEdit: canEdit
@@ -981,13 +995,214 @@ class _CatalogScreenState extends State<CatalogScreen>
     _CatalogView.calendar => ReleaseCalendarView(
       records: records,
       selectedId: _selected?.id,
+      repository: _repository,
+      online: !_showingCachedSnapshot && _error == null,
       onSelect: (edition) =>
           _openEdition(edition, inlineDetails: inlineDetails),
     ),
   };
 
+  void _setStatusFilter(String? status) => setState(() {
+    final current = _filters.without(CatalogFilterField.status);
+    _filters = CatalogFilters(
+      categoryQuery: current.categoryQuery,
+      contributorQuery: current.contributorQuery,
+      categoryId: current.categoryId,
+      contributorId: current.contributorId,
+      workId: current.workId,
+      releaseDatePrefix: current.releaseDatePrefix,
+      releaseFrom: current.releaseFrom,
+      releaseThrough: current.releaseThrough,
+      publicationStatus: status,
+    );
+    if (_selected != null && !_filters.matches(_selected!)) _selected = null;
+  });
+
+  Future<void> _runTool(String action) async {
+    switch (action) {
+      case 'exchange':
+        await _exchange();
+      case 'members':
+        await _manageMembers();
+      case 'signout':
+        await _signOut();
+    }
+  }
+
+  List<Widget> _filterChips() => [
+    if (_filters.categoryQuery case final category?)
+      InputChip(
+        label: Text('Category: $category'),
+        onDeleted: () => setState(
+          () => _filters = _filters.without(CatalogFilterField.category),
+        ),
+      ),
+    if (_filters.contributorQuery case final contributor?)
+      InputChip(
+        label: Text('Contributor: $contributor'),
+        onDeleted: () => setState(
+          () => _filters = _filters.without(CatalogFilterField.contributor),
+        ),
+      ),
+    if (_filters.publicationStatus case final status?)
+      InputChip(
+        label: Text('Status: ${_statusLabel(status)}'),
+        onDeleted: () => setState(
+          () => _filters = _filters.without(CatalogFilterField.status),
+        ),
+      ),
+    if (_filters.releaseDatePrefix case final date?)
+      InputChip(
+        label: Text('Release: $date'),
+        onDeleted: () => setState(
+          () => _filters = _filters.without(CatalogFilterField.releaseDate),
+        ),
+      ),
+    if (_filters.workId != null)
+      InputChip(
+        label: const Text('Same work'),
+        tooltip: _filters.workId,
+        onDeleted: () => setState(
+          () => _filters = _filters.without(CatalogFilterField.work),
+        ),
+      ),
+    if (_filters.releaseFrom != null || _filters.releaseThrough != null)
+      InputChip(
+        label: Text(
+          '${_filters.releaseFrom ?? 'Any date'} to ${_filters.releaseThrough ?? 'Any date'}',
+        ),
+        tooltip: 'Includes partial dates that overlap this range.',
+        onDeleted: () => setState(
+          () => _filters = _filters.without(CatalogFilterField.releaseRange),
+        ),
+      ),
+    if (!_filters.isEmpty)
+      TextButton(
+        onPressed: () => setState(() => _filters = const CatalogFilters()),
+        child: const Text('Clear filters'),
+      ),
+  ];
+
+  Widget _sidebar(CatalogSnapshot? snapshot, bool canEdit) {
+    final palette = ShelfPalette.of(context);
+    final editions = snapshot?.editions ?? const <CatalogEdition>[];
+    int count(String status) =>
+        editions.where((edition) => edition.publicationStatus == status).length;
+    final online = !_showingCachedSnapshot && _error == null;
+    return Container(
+      width: 232,
+      decoration: BoxDecoration(
+        color: palette.rail,
+        border: Border(right: BorderSide(color: palette.hairline)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(18, 18, 18, 22),
+            child: _Wordmark(),
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              children: [
+                const _RailHeading('Views'),
+                _RailItem(
+                  icon: Icons.grid_view_outlined,
+                  label: 'Gallery',
+                  selected: _view == _CatalogView.gallery,
+                  onTap: () => setState(() => _view = _CatalogView.gallery),
+                ),
+                _RailItem(
+                  icon: Icons.table_rows_outlined,
+                  label: 'Table',
+                  selected: _view == _CatalogView.table,
+                  onTap: () => setState(() => _view = _CatalogView.table),
+                ),
+                _RailItem(
+                  icon: Icons.calendar_month_outlined,
+                  label: 'Release calendar',
+                  selected: _view == _CatalogView.calendar,
+                  onTap: () => setState(() => _view = _CatalogView.calendar),
+                ),
+                const SizedBox(height: 20),
+                const _RailHeading('Publication status'),
+                _RailItem(
+                  label: 'All editions',
+                  count: editions.length,
+                  selected: _filters.publicationStatus == null,
+                  onTap: snapshot == null ? null : () => _setStatusFilter(null),
+                ),
+                for (final status in const [
+                  'planned',
+                  'announced',
+                  'released',
+                  'out_of_print',
+                ])
+                  _RailItem(
+                    label: _statusLabel(status),
+                    count: count(status),
+                    selected: _filters.publicationStatus == status,
+                    onTap: snapshot == null
+                        ? null
+                        : () => _setStatusFilter(status),
+                  ),
+                const SizedBox(height: 20),
+                const _RailHeading('Tools'),
+                _RailItem(
+                  icon: Icons.swap_horiz,
+                  label: 'File exchange',
+                  onTap: snapshot != null && online && !_busy
+                      ? () => _runTool('exchange')
+                      : null,
+                ),
+                if (snapshot?.role == CatalogRole.administrator && canEdit)
+                  _RailItem(
+                    icon: Icons.group_outlined,
+                    label: 'Manage members',
+                    onTap: _busy ? null : () => _runTool('members'),
+                  ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.fromLTRB(18, 12, 10, 12),
+            decoration: BoxDecoration(
+              border: Border(top: BorderSide(color: palette.hairline)),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  online ? Icons.circle : Icons.cloud_off_outlined,
+                  size: online ? 8 : 16,
+                  color: online ? const Color(0xff2e9d57) : palette.inkMuted,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    snapshot == null
+                        ? (online ? 'Connecting…' : 'Offline')
+                        : '${snapshot.role.label}${online ? '' : ' · read-only'}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                TextButton(
+                  onPressed: _busy ? null : () => _runTool('signout'),
+                  child: const Text('Sign out'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final palette = ShelfPalette.of(context);
+    final textTheme = Theme.of(context).textTheme;
     final snapshot = _snapshot;
     final records = sortedCatalog(
       snapshot?.editions.where(
@@ -1002,87 +1217,25 @@ class _CatalogScreenState extends State<CatalogScreen>
       snapshot?.role,
       connected: _error == null && !_showingCachedSnapshot,
     );
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Catalog'),
-        actions: [
-          if (snapshot != null && MediaQuery.sizeOf(context).width >= 900)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Center(
-                child: Row(
-                  children: [
-                    Icon(
-                      _showingCachedSnapshot
-                          ? Icons.cloud_off_outlined
-                          : Icons.circle,
-                      size: _showingCachedSnapshot ? 18 : 10,
-                      color: _showingCachedSnapshot
-                          ? Theme.of(context).colorScheme.onSurfaceVariant
-                          : _pressroomChartreuse,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${snapshot.role.label} · ${snapshot.editions.length} editions',
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          if (canEdit)
-            IconButton(
-              tooltip: 'Add edition',
-              onPressed: _busy ? null : _createEdition,
-              icon: const Icon(Icons.add),
-            ),
-          IconButton(
-            tooltip: 'Reload catalog',
-            onPressed: _busy ? null : _reload,
-            icon: const Icon(Icons.refresh),
-          ),
-          PopupMenuButton<String>(
-            tooltip: 'Catalog tools',
-            enabled: !_busy,
-            onSelected: (action) async {
-              switch (action) {
-                case 'exchange':
-                  await _exchange();
-                case 'members':
-                  await _manageMembers();
-                case 'signout':
-                  await _signOut();
-              }
-            },
-            itemBuilder: (context) => [
-              PopupMenuItem(
-                value: 'exchange',
-                enabled:
-                    snapshot != null &&
-                    !_showingCachedSnapshot &&
-                    _error == null,
-                child: const Text('File exchange'),
-              ),
-              if (snapshot?.role == CatalogRole.administrator && canEdit)
-                const PopupMenuItem(
-                  value: 'members',
-                  child: Text('Manage members'),
-                ),
-              const PopupMenuItem(value: 'signout', child: Text('Sign out')),
-            ],
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1480),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  TextField(
+    final width = MediaQuery.sizeOf(context).width;
+    final wide = width >= 1100;
+    final chips = _filterChips();
+    final ready =
+        !_busy &&
+        (_error == null || _showingCachedSnapshot) &&
+        snapshot != null;
+    final toolbar = Padding(
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              if (!wide) ...[const _Wordmark(), const SizedBox(width: 20)],
+              Expanded(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 560),
+                  child: TextField(
                     controller: _search,
                     onChanged: (query) => setState(() {
                       if (_selected != null &&
@@ -1092,8 +1245,8 @@ class _CatalogScreenState extends State<CatalogScreen>
                       }
                     }),
                     decoration: InputDecoration(
-                      labelText: 'Search title, ISBN, contributor, or category',
-                      prefixIcon: const Icon(Icons.search),
+                      hintText: 'Search title, ISBN, contributor, or category',
+                      prefixIcon: const Icon(Icons.search, size: 20),
                       suffixIcon: _search.text.isEmpty
                           ? null
                           : IconButton(
@@ -1102,242 +1255,456 @@ class _CatalogScreenState extends State<CatalogScreen>
                                 _search.clear();
                                 setState(() {});
                               },
-                              icon: const Icon(Icons.clear),
+                              icon: const Icon(Icons.clear, size: 18),
                             ),
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 4,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      OutlinedButton.icon(
-                        onPressed: _configureFilters,
-                        icon: const Icon(Icons.tune),
-                        label: const Text('Filters'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                onPressed: _configureFilters,
+                icon: const Icon(Icons.tune, size: 18),
+                label: const Text('Filters'),
+              ),
+              const Spacer(),
+              IconButton(
+                tooltip: 'Reload catalog',
+                onPressed: _busy ? null : _reload,
+                icon: const Icon(Icons.refresh, size: 20),
+              ),
+              if (!wide)
+                PopupMenuButton<String>(
+                  tooltip: 'Catalog tools',
+                  enabled: !_busy,
+                  icon: const Icon(Icons.more_horiz),
+                  onSelected: _runTool,
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      value: 'exchange',
+                      enabled:
+                          snapshot != null &&
+                          !_showingCachedSnapshot &&
+                          _error == null,
+                      child: const Text('File exchange'),
+                    ),
+                    if (snapshot?.role == CatalogRole.administrator && canEdit)
+                      const PopupMenuItem(
+                        value: 'members',
+                        child: Text('Manage members'),
                       ),
-                      if (_filters.categoryQuery case final category?)
-                        InputChip(
-                          label: Text('Category: $category'),
-                          onDeleted: () => setState(
-                            () => _filters = _filters.without(
-                              CatalogFilterField.category,
+                    const PopupMenuItem(
+                      value: 'signout',
+                      child: Text('Sign out'),
+                    ),
+                  ],
+                ),
+              if (canEdit) ...[
+                const SizedBox(width: 8),
+                Tooltip(
+                  message: 'Add edition',
+                  child: FilledButton.icon(
+                    onPressed: _busy ? null : _createEdition,
+                    icon: const Icon(Icons.add, size: 18),
+                    label: Text(width >= 760 ? 'New edition' : 'New'),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          if (chips.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: chips,
+            ),
+          ],
+          if (ready) ...[
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Expanded(
+                  child: Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          '${records.length} matching ${records.length == 1 ? 'edition' : 'editions'}',
+                          style: textTheme.titleMedium,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (_offlineWarning != null && _error == null) ...[
+                        const SizedBox(width: 14),
+                        Icon(
+                          Icons.cloud_off_outlined,
+                          size: 15,
+                          color: palette.inkMuted,
+                        ),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Semantics(
+                            liveRegion: true,
+                            child: Text(
+                              _offlineWarning!,
+                              style: textTheme.bodySmall?.copyWith(
+                                color: palette.inkMuted,
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ),
-                      if (_filters.contributorQuery case final contributor?)
-                        InputChip(
-                          label: Text('Contributor: $contributor'),
-                          onDeleted: () => setState(
-                            () => _filters = _filters.without(
-                              CatalogFilterField.contributor,
-                            ),
-                          ),
-                        ),
-                      if (_filters.publicationStatus case final status?)
-                        InputChip(
-                          label: Text('Status: ${_statusLabel(status)}'),
-                          onDeleted: () => setState(
-                            () => _filters = _filters.without(
-                              CatalogFilterField.status,
-                            ),
-                          ),
-                        ),
-                      if (_filters.releaseDatePrefix case final date?)
-                        InputChip(
-                          label: Text('Release: $date'),
-                          onDeleted: () => setState(
-                            () => _filters = _filters.without(
-                              CatalogFilterField.releaseDate,
-                            ),
-                          ),
-                        ),
-                      if (_filters.workId != null)
-                        InputChip(
-                          label: const Text('Same work'),
-                          tooltip: _filters.workId,
-                          onDeleted: () => setState(
-                            () => _filters = _filters.without(
-                              CatalogFilterField.work,
-                            ),
-                          ),
-                        ),
-                      if (_filters.releaseFrom != null ||
-                          _filters.releaseThrough != null)
-                        InputChip(
-                          label: Text(
-                            '${_filters.releaseFrom ?? 'Any date'} to ${_filters.releaseThrough ?? 'Any date'}',
-                          ),
-                          tooltip:
-                              'Includes partial dates that overlap this range.',
-                          onDeleted: () => setState(
-                            () => _filters = _filters.without(
-                              CatalogFilterField.releaseRange,
-                            ),
-                          ),
-                        ),
-                      if (!_filters.isEmpty)
-                        TextButton(
-                          onPressed: () =>
-                              setState(() => _filters = const CatalogFilters()),
-                          child: const Text('Clear filters'),
-                        ),
+                      ],
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  if (_busy) const LinearProgressIndicator(),
-                  if (_offlineWarning != null && _error == null)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Semantics(
-                        liveRegion: true,
-                        child: Text(_offlineWarning!),
+                ),
+                const SizedBox(width: 12),
+                if (!wide) ...[
+                  SegmentedButton<_CatalogView>(
+                    showSelectedIcon: false,
+                    segments: [
+                      ButtonSegment(
+                        value: _CatalogView.gallery,
+                        icon: const Icon(Icons.grid_view_outlined, size: 16),
+                        tooltip: 'Gallery',
                       ),
-                    ),
-                  if (_error != null)
-                    _CatalogError(
-                      error: _error!,
-                      onRetry: _reload,
-                      showingCachedSnapshot: _showingCachedSnapshot,
-                      lease: _offlineEntry?.lease,
-                    ),
-                  if (!_busy &&
-                      (_error == null || _showingCachedSnapshot) &&
-                      snapshot != null) ...[
-                    SegmentedButton<_CatalogView>(
-                      showSelectedIcon: false,
-                      segments: const [
-                        ButtonSegment(
-                          value: _CatalogView.gallery,
-                          icon: Icon(Icons.grid_view_outlined),
-                          label: Text('Gallery'),
+                      ButtonSegment(
+                        value: _CatalogView.table,
+                        icon: const Icon(Icons.table_rows_outlined, size: 16),
+                        tooltip: 'Table',
+                      ),
+                      ButtonSegment(
+                        value: _CatalogView.calendar,
+                        icon: const Icon(
+                          Icons.calendar_month_outlined,
+                          size: 16,
                         ),
-                        ButtonSegment(
-                          value: _CatalogView.table,
-                          icon: Icon(Icons.table_rows_outlined),
-                          label: Text('Table'),
-                        ),
-                        ButtonSegment(
-                          value: _CatalogView.calendar,
-                          icon: Icon(Icons.calendar_month_outlined),
-                          label: Text('Release calendar'),
-                        ),
-                      ],
-                      selected: {_view},
-                      onSelectionChanged: (selection) =>
-                          setState(() => _view = selection.first),
+                        tooltip: 'Release calendar',
+                      ),
+                    ],
+                    selected: {_view},
+                    onSelectionChanged: (selection) =>
+                        setState(() => _view = selection.first),
+                  ),
+                  const SizedBox(width: 12),
+                ],
+                PopupMenuButton<CatalogSort>(
+                  tooltip: 'Sort catalog',
+                  initialValue: _sort,
+                  onSelected: (field) => setState(() => _sort = field),
+                  itemBuilder: (context) => [
+                    for (final field in CatalogSort.values)
+                      CheckedPopupMenuItem(
+                        value: field,
+                        checked: _sort == field,
+                        child: Text(field.label),
+                      ),
+                  ],
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 8,
                     ),
-                    const SizedBox(height: 12),
-                    Row(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Expanded(
-                          child: Text(
-                            '${records.length} matching ${records.length == 1 ? 'edition' : 'editions'}',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                        ),
-                        PopupMenuButton<CatalogSort>(
-                          tooltip: 'Sort catalog',
-                          initialValue: _sort,
-                          onSelected: (field) => setState(() => _sort = field),
-                          icon: const Icon(Icons.sort),
-                          itemBuilder: (context) => [
-                            for (final field in CatalogSort.values)
-                              CheckedPopupMenuItem(
-                                value: field,
-                                checked: _sort == field,
-                                child: Text(field.label),
-                              ),
-                          ],
-                        ),
-                        IconButton(
-                          tooltip: _sortAscending
-                              ? 'Sort descending'
-                              : 'Sort ascending',
-                          onPressed: () =>
-                              setState(() => _sortAscending = !_sortAscending),
-                          icon: Icon(
-                            _sortAscending
-                                ? Icons.arrow_upward
-                                : Icons.arrow_downward,
+                        Icon(Icons.sort, size: 18, color: palette.inkMuted),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Sorted by ${_sort.label.toLowerCase()}',
+                          style: textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                  ),
+                ),
+                IconButton(
+                  tooltip: _sortAscending
+                      ? 'Sort descending'
+                      : 'Sort ascending',
+                  onPressed: () =>
+                      setState(() => _sortAscending = !_sortAscending),
+                  icon: Icon(
+                    _sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
+                    size: 18,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+          ],
+        ],
+      ),
+    );
+    final workspace = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        toolbar,
+        if (_busy) ...[
+          const SizedBox(height: 14),
+          const LinearProgressIndicator(),
+          const Expanded(child: _LoadingShelf()),
+        ],
+        if (_error != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+            child: _showingCachedSnapshot
+                ? _CatalogError(
+                    error: _error!,
+                    onRetry: _reload,
+                    showingCachedSnapshot: true,
+                    lease: _offlineEntry?.lease,
+                  )
+                : null,
+          ),
+        if (_error != null && !_showingCachedSnapshot)
+          _CatalogError(
+            error: _error!,
+            onRetry: _reload,
+            lease: _offlineEntry?.lease,
+          ),
+        if (ready)
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 560;
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
                     Expanded(
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          final compact = constraints.maxWidth < 760;
-                          final showDetails = constraints.maxWidth >= 1000;
-                          return Row(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Expanded(
-                                flex: showDetails ? 3 : 1,
-                                child: records.isEmpty
-                                    ? _EmptyResults(
-                                        query: _search.text,
-                                        onClear: () {
-                                          _search.clear();
-                                          setState(() {});
-                                        },
-                                      )
-                                    : _catalogView(
-                                        records,
-                                        compact,
-                                        showDetails,
-                                      ),
-                              ),
-                              if (showDetails) ...[
-                                const VerticalDivider(width: 28),
-                                SizedBox(
-                                  width: 330,
-                                  child: _selected == null
-                                      ? const _DetailPrompt()
-                                      : _EditionDetails(
-                                          edition: _selected!,
-                                          repository: _repository,
-                                          online:
-                                              !_showingCachedSnapshot &&
-                                              _error == null,
-                                          onEdit: canEdit
-                                              ? () => _edit(_selected!)
-                                              : null,
-                                          onEditRelationships: canEdit
-                                              ? () => _editRelations(_selected!)
-                                              : null,
-                                          onAddEdition: canEdit
-                                              ? () => _createEdition(
-                                                  relatedEdition: _selected!,
-                                                )
-                                              : null,
-                                          onContributor: _filterByContributor,
-                                          onCategory: _filterByCategory,
-                                          onShowWork: () =>
-                                              _filterToWork(_selected!),
-                                          onChooseCover: canEdit
-                                              ? () => _selectCover(_selected!)
-                                              : null,
-                                          onRemoveCover:
-                                              canEdit &&
-                                                  _selected!.coverKey != null
-                                              ? () => _removeCover(_selected!)
-                                              : null,
-                                          coverBusy: _coverBusy,
-                                        ),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+                        child: records.isEmpty
+                            ? _EmptyResults(
+                                query: _search.text,
+                                filtered: !_filters.isEmpty,
+                                onClear: () {
+                                  _search.clear();
+                                  setState(() {});
+                                },
+                                onClearFilters: () => setState(
+                                  () => _filters = const CatalogFilters(),
                                 ),
-                              ],
-                            ],
-                          );
-                        },
+                              )
+                            : _catalogView(records, compact, wide),
                       ),
                     ),
                   ],
+                );
+              },
+            ),
+          ),
+      ],
+    );
+    return Scaffold(
+      body: SafeArea(
+        child: wide
+            ? Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _sidebar(snapshot, canEdit),
+                  Expanded(child: workspace),
+                  if (ready)
+                    Container(
+                      width: 388,
+                      decoration: BoxDecoration(
+                        color: palette.paper,
+                        border: Border(
+                          left: BorderSide(color: palette.hairline),
+                        ),
+                      ),
+                      child: _selected == null
+                          ? const _DetailPrompt()
+                          : _EditionDetails(
+                              key: ValueKey(_selected!.id),
+                              edition: _selected!,
+                              repository: _repository,
+                              online: !_showingCachedSnapshot && _error == null,
+                              padding: const EdgeInsets.fromLTRB(
+                                24,
+                                24,
+                                24,
+                                32,
+                              ),
+                              onEdit: canEdit ? () => _edit(_selected!) : null,
+                              onEditRelationships: canEdit
+                                  ? () => _editRelations(_selected!)
+                                  : null,
+                              onAddEdition: canEdit
+                                  ? () => _createEdition(
+                                      relatedEdition: _selected!,
+                                    )
+                                  : null,
+                              onContributor: _filterByContributor,
+                              onCategory: _filterByCategory,
+                              onShowWork: () => _filterToWork(_selected!),
+                              onChooseCover: canEdit
+                                  ? () => _selectCover(_selected!)
+                                  : null,
+                              onRemoveCover:
+                                  canEdit && _selected!.coverKey != null
+                                  ? () => _removeCover(_selected!)
+                                  : null,
+                              coverBusy: _coverBusy,
+                            ),
+                    ),
                 ],
+              )
+            : workspace,
+      ),
+    );
+  }
+}
+
+class _RailHeading extends StatelessWidget {
+  const _RailHeading(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
+    child: Text(
+      label,
+      style: Theme.of(context).textTheme.labelMedium
+          ?.copyWith(fontWeight: FontWeight.w600),
+    ),
+  );
+}
+
+class _RailItem extends StatelessWidget {
+  const _RailItem({
+    required this.label,
+    this.icon,
+    this.count,
+    this.selected = false,
+    this.onTap,
+  });
+
+  final String label;
+  final IconData? icon;
+  final int? count;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = ShelfPalette.of(context);
+    final foreground = onTap == null && !selected
+        ? palette.inkMuted.withAlpha(150)
+        : selected
+        ? palette.onAccent
+        : palette.ink;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: Semantics(
+        selected: selected,
+        button: true,
+        child: Material(
+          color: selected ? palette.accent : Colors.transparent,
+          borderRadius: shelfRadius,
+          child: InkWell(
+            borderRadius: shelfRadius,
+            onTap: onTap,
+            child: SizedBox(
+              height: 34,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Row(
+                  children: [
+                    if (icon != null) ...[
+                      Icon(icon, size: 18, color: foreground),
+                      const SizedBox(width: 10),
+                    ],
+                    Expanded(
+                      child: Text(
+                        label,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          color: foreground,
+                          fontWeight: selected
+                              ? FontWeight.w600
+                              : FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    if (count != null)
+                      Text(
+                        '$count',
+                        style: shelfMono.copyWith(
+                          fontSize: 12,
+                          color: selected ? palette.onAccent : palette.inkMuted,
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LoadingShelf extends StatelessWidget {
+  const _LoadingShelf();
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = ShelfPalette.of(context);
+    return Semantics(
+      label: 'Loading catalog',
+      child: ExcludeSemantics(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final columns = ((constraints.maxWidth + 20) / 196).floor().clamp(
+                1,
+                12,
+              );
+              return Wrap(
+                spacing: 20,
+                runSpacing: 24,
+                children: [
+                  for (var index = 0; index < columns; index++)
+                    SizedBox(
+                      width: 176,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          AspectRatio(
+                            aspectRatio: 2 / 3,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: palette.blankBoard,
+                                borderRadius: shelfRadius,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Container(
+                            height: 10,
+                            width: 130,
+                            color: palette.blankBoard,
+                          ),
+                          const SizedBox(height: 6),
+                          Container(
+                            height: 10,
+                            width: 80,
+                            color: palette.blankBoard,
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              );
+            },
           ),
         ),
       ),
@@ -1359,23 +1726,30 @@ class _EditionList extends StatelessWidget {
   final ValueChanged<CatalogEdition> onSelect;
 
   @override
-  Widget build(BuildContext context) => ListView.builder(
-    itemCount: records.length,
-    itemBuilder: (context, index) {
-      final edition = records[index];
-      return ListTile(
-        selected: edition.id == selectedId,
-        title: Text(edition.title),
-        subtitle: Text(
-          '${edition.format} · ${edition.isbn ?? 'No ISBN'} · ${edition.releaseDate ?? 'Date unknown'}',
-        ),
-        onTap: () => onSelect(edition),
-        trailing: canEdit
-            ? const Icon(Icons.edit_outlined)
-            : const Icon(Icons.chevron_right),
-      );
-    },
-  );
+  Widget build(BuildContext context) {
+    final palette = ShelfPalette.of(context);
+    return ListView.separated(
+      padding: const EdgeInsets.only(bottom: 24),
+      itemCount: records.length,
+      separatorBuilder: (context, index) =>
+          Divider(height: 1, color: palette.hairline),
+      itemBuilder: (context, index) {
+        final edition = records[index];
+        return ListTile(
+          selected: edition.id == selectedId,
+          title: Text(edition.title),
+          subtitle: Text(
+            '${edition.format} · ${edition.isbn ?? 'No ISBN'} · ${edition.releaseDate ?? 'Date unknown'}',
+            style: shelfMono.copyWith(fontSize: 12, color: palette.inkMuted),
+          ),
+          onTap: () => onSelect(edition),
+          trailing: canEdit
+              ? const Icon(Icons.edit_outlined, size: 18)
+              : const Icon(Icons.chevron_right),
+        );
+      },
+    );
+  }
 }
 
 class _EditionDataSource extends DataTableSource {
@@ -1383,16 +1757,19 @@ class _EditionDataSource extends DataTableSource {
     required this.records,
     required this.selectedId,
     required this.onSelect,
+    required this.muted,
   });
 
   final List<CatalogEdition> records;
   final String? selectedId;
   final ValueChanged<CatalogEdition> onSelect;
+  final Color muted;
 
   @override
   DataRow? getRow(int index) {
     if (index >= records.length) return null;
     final edition = records[index];
+    final mono = shelfMono.copyWith(fontSize: 12.5);
     return DataRow.byIndex(
       index: index,
       selected: edition.id == selectedId,
@@ -1400,13 +1777,27 @@ class _EditionDataSource extends DataTableSource {
       cells: [
         DataCell(
           ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 500),
-            child: Text(edition.title, overflow: TextOverflow.ellipsis),
+            constraints: const BoxConstraints(maxWidth: 460),
+            child: Text(
+              edition.title,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
           ),
         ),
         DataCell(Text(edition.format)),
-        DataCell(Text(edition.isbn ?? 'No ISBN')),
-        DataCell(Text(edition.releaseDate ?? 'Date unknown')),
+        DataCell(
+          Text(
+            edition.isbn ?? 'No ISBN',
+            style: edition.isbn == null ? TextStyle(color: muted) : mono,
+          ),
+        ),
+        DataCell(
+          Text(
+            edition.releaseDate ?? 'Date unknown',
+            style: edition.releaseDate == null ? TextStyle(color: muted) : mono,
+          ),
+        ),
       ],
     );
   }
@@ -1440,29 +1831,50 @@ class _EditionTable extends StatelessWidget {
   final void Function(CatalogSort, bool) onSort;
 
   @override
-  Widget build(BuildContext context) => Scrollbar(
-    child: SingleChildScrollView(
-      child: PaginatedDataTable(
-        showCheckboxColumn: false,
-        rowsPerPage: records.length < 25 ? records.length.clamp(1, 25) : 25,
-        availableRowsPerPage: const [10, 25, 50, 100],
-        sortColumnIndex: sort.index,
-        sortAscending: sortAscending,
-        columns: [
-          for (final field in CatalogSort.values)
-            DataColumn(
-              label: Text(field.label),
-              onSort: (_, ascending) => onSort(field, ascending),
+  Widget build(BuildContext context) {
+    final palette = ShelfPalette.of(context);
+    return SingleChildScrollView(
+      padding: const EdgeInsets.only(bottom: 24),
+      child: Theme(
+        data: Theme.of(context).copyWith(
+          cardTheme: CardThemeData(
+            color: palette.paper,
+            elevation: 0,
+            margin: EdgeInsets.zero,
+            shape: RoundedRectangleBorder(
+              borderRadius: shelfRadius,
+              side: BorderSide(color: palette.hairline),
             ),
-        ],
-        source: _EditionDataSource(
-          records: records,
-          selectedId: selectedId,
-          onSelect: onSelect,
+          ),
+        ),
+        child: PaginatedDataTable(
+          showCheckboxColumn: false,
+          headingRowHeight: 44,
+          dataRowMinHeight: 44,
+          dataRowMaxHeight: 48,
+          horizontalMargin: 18,
+          columnSpacing: 28,
+          rowsPerPage: records.length < 25 ? records.length.clamp(1, 25) : 25,
+          availableRowsPerPage: const [10, 25, 50, 100],
+          sortColumnIndex: sort.index,
+          sortAscending: sortAscending,
+          columns: [
+            for (final field in CatalogSort.values)
+              DataColumn(
+                label: Text(field.label),
+                onSort: (_, ascending) => onSort(field, ascending),
+              ),
+          ],
+          source: _EditionDataSource(
+            records: records,
+            selectedId: selectedId,
+            onSelect: onSelect,
+            muted: palette.inkMuted,
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _EditionGallery extends StatelessWidget {
@@ -1481,36 +1893,128 @@ class _EditionGallery extends StatelessWidget {
   final ValueChanged<CatalogEdition> onSelect;
 
   @override
-  Widget build(BuildContext context) => GridView.builder(
-    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-      maxCrossAxisExtent: 250,
-      mainAxisExtent: 300,
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
-    ),
-    itemCount: records.length,
-    itemBuilder: (context, index) {
-      final edition = records[index];
-      return Card(
-        clipBehavior: Clip.antiAlias,
-        color: edition.id == selectedId
-            ? Theme.of(context).colorScheme.secondaryContainer
-            : null,
-        child: InkWell(
-          onTap: () => onSelect(edition),
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      const spacing = 22.0;
+      final columns = ((constraints.maxWidth + spacing) / (176 + spacing))
+          .floor()
+          .clamp(1, 12);
+      final tileWidth =
+          (constraints.maxWidth - spacing * (columns - 1)) / columns;
+      return GridView.builder(
+        padding: const EdgeInsets.only(top: 6, bottom: 32),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: columns,
+          crossAxisSpacing: spacing,
+          mainAxisSpacing: 28,
+          mainAxisExtent: tileWidth * 1.5 + 92,
+        ),
+        itemCount: records.length,
+        itemBuilder: (context, index) {
+          final edition = records[index];
+          return _GalleryTile(
+            edition: edition,
+            repository: repository,
+            online: online,
+            selected: edition.id == selectedId,
+            onTap: () => onSelect(edition),
+          );
+        },
+      );
+    },
+  );
+}
+
+class _GalleryTile extends StatefulWidget {
+  const _GalleryTile({
+    required this.edition,
+    required this.repository,
+    required this.online,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final CatalogEdition edition;
+  final CatalogRepository repository;
+  final bool online;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  State<_GalleryTile> createState() => _GalleryTileState();
+}
+
+class _GalleryTileState extends State<_GalleryTile> {
+  bool _lifted = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = ShelfPalette.of(context);
+    final textTheme = Theme.of(context).textTheme;
+    final edition = widget.edition;
+    final selected = widget.selected;
+    final lifted = _lifted || selected;
+    final contributor = edition.credits.isEmpty
+        ? null
+        : edition.credits.first.contributor.name;
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: FocusableActionDetector(
+        mouseCursor: SystemMouseCursors.click,
+        onShowHoverHighlight: (value) => setState(() => _lifted = value),
+        onShowFocusHighlight: (value) => setState(() => _lifted = value),
+        actions: {
+          ActivateIntent: CallbackAction<ActivateIntent>(
+            onInvoke: (_) {
+              widget.onTap();
+              return null;
+            },
+          ),
+        },
+        child: GestureDetector(
+          onTap: widget.onTap,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(
-                child: _CoverPreview(
-                  edition: edition,
-                  repository: repository,
-                  online: online,
-                  fit: BoxFit.contain,
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                curve: Curves.easeOutCubic,
+                transform: Matrix4.translationValues(0, lifted ? -3 : 0, 0),
+                decoration: BoxDecoration(
+                  borderRadius: const BorderRadius.all(Radius.circular(2)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withAlpha(lifted ? 70 : 38),
+                      offset: Offset(0, lifted ? 10 : 4),
+                      blurRadius: lifted ? 22 : 10,
+                    ),
+                  ],
+                ),
+                child: AspectRatio(
+                  aspectRatio: 2 / 3,
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.all(Radius.circular(2)),
+                    child: _CoverPreview(
+                      edition: edition,
+                      repository: widget.repository,
+                      online: widget.online,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+              const SizedBox(height: 12),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                padding: EdgeInsets.symmetric(
+                  horizontal: selected ? 8 : 0,
+                  vertical: selected ? 6 : 0,
+                ),
+                decoration: BoxDecoration(
+                  color: selected ? palette.accent : Colors.transparent,
+                  borderRadius: shelfRadius,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1518,13 +2022,24 @@ class _EditionGallery extends StatelessWidget {
                       edition.title,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium,
+                      style: textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        height: 1.25,
+                        color: selected ? palette.onAccent : palette.ink,
+                      ),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 3),
                     Text(
-                      '${edition.format} · ${edition.releaseDate ?? 'Date unknown'}',
+                      [
+                        ?contributor,
+                        edition.format,
+                        edition.releaseDate ?? 'Date unknown',
+                      ].join(' · '),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
+                      style: textTheme.bodySmall?.copyWith(
+                        color: selected ? palette.onAccent : palette.inkMuted,
+                      ),
                     ),
                   ],
                 ),
@@ -1532,10 +2047,25 @@ class _EditionGallery extends StatelessWidget {
             ],
           ),
         ),
-      );
-    },
-  );
+      ),
+    );
+  }
 }
+
+const _monthNames = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
 
 class ReleaseCalendarView extends StatelessWidget {
   const ReleaseCalendarView({
@@ -1543,84 +2073,218 @@ class ReleaseCalendarView extends StatelessWidget {
     required this.records,
     required this.selectedId,
     required this.onSelect,
+    this.repository,
+    this.online = false,
   });
 
   final List<CatalogEdition> records;
   final String? selectedId;
   final ValueChanged<CatalogEdition> onSelect;
+  final CatalogRepository? repository;
+  final bool online;
+
+  static String _monthKey(String? date) {
+    if (date == null || date.length < 4) return '~';
+    if (date.length == 4) return '$date-13';
+    return date.substring(0, 7);
+  }
+
+  static String monthHeading(String key) {
+    if (key == '~') return 'Date not set';
+    final year = key.substring(0, 4);
+    final month = int.tryParse(key.substring(5, 7)) ?? 13;
+    if (month < 1 || month > 12) return '$year · month not set';
+    return '${_monthNames[month - 1]} $year';
+  }
 
   @override
   Widget build(BuildContext context) {
+    final palette = ShelfPalette.of(context);
+    final textTheme = Theme.of(context).textTheme;
     final grouped = <String, List<CatalogEdition>>{};
     for (final edition in records) {
-      grouped.putIfAbsent(edition.releaseDate ?? '', () => []).add(edition);
+      grouped
+          .putIfAbsent(_monthKey(edition.releaseDate), () => [])
+          .add(edition);
     }
-    final dates = grouped.keys.toList()
-      ..sort((left, right) {
-        if (left.isEmpty) return 1;
-        if (right.isEmpty) return -1;
-        return left.compareTo(right);
-      });
-    final entries = <({String? heading, CatalogEdition? edition})>[];
-    for (final date in dates) {
-      entries.add((heading: _dateLabel(date), edition: null));
-      for (final edition in grouped[date]!) {
-        entries.add((heading: null, edition: edition));
+    final keys = grouped.keys.toList()..sort();
+    for (final list in grouped.values) {
+      list.sort(
+        (left, right) =>
+            (left.releaseDate ?? '').compareTo(right.releaseDate ?? ''),
+      );
+    }
+    final entries = <({String? heading, int count, CatalogEdition? edition})>[];
+    for (final key in keys) {
+      final group = grouped[key]!;
+      entries.add((
+        heading: monthHeading(key),
+        count: group.length,
+        edition: null,
+      ));
+      for (final edition in group) {
+        entries.add((heading: null, count: 0, edition: edition));
       }
     }
     return ListView.builder(
+      padding: const EdgeInsets.only(bottom: 32),
       itemCount: entries.length,
       itemBuilder: (context, index) {
         final entry = entries[index];
         if (entry.heading case final heading?) {
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
-            child: Text(
-              heading,
-              style: Theme.of(context).textTheme.titleMedium,
+          return Container(
+            margin: EdgeInsets.only(top: index == 0 ? 4 : 28, bottom: 4),
+            padding: const EdgeInsets.only(bottom: 8),
+            decoration: BoxDecoration(
+              border: Border(bottom: BorderSide(color: palette.ink, width: 1)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(
+                  heading,
+                  style: textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  '${entry.count} ${entry.count == 1 ? 'edition' : 'editions'}',
+                  style: textTheme.bodySmall?.copyWith(color: palette.inkMuted),
+                ),
+              ],
             ),
           );
         }
         final edition = entry.edition!;
-        return ListTile(
-          selected: edition.id == selectedId,
-          title: Text(edition.title),
-          subtitle: Text(
-            '${edition.format} · ${edition.publicationStatus} · ${edition.isbn ?? 'No ISBN'}',
+        final date = edition.releaseDate;
+        final day = date != null && date.length == 10
+            ? date.substring(8, 10)
+            : '—';
+        final selected = edition.id == selectedId;
+        return Material(
+          color: selected ? palette.accent : Colors.transparent,
+          borderRadius: shelfRadius,
+          child: InkWell(
+            borderRadius: shelfRadius,
+            onTap: () => onSelect(edition),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
+                    color: selected ? Colors.transparent : palette.hairline,
+                  ),
+                ),
+              ),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 40,
+                    child: Text(
+                      day,
+                      style: shelfMono.copyWith(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: selected ? palette.onAccent : palette.ink,
+                      ),
+                    ),
+                  ),
+                  if (repository case final repository?) ...[
+                    SizedBox(
+                      width: 30,
+                      height: 45,
+                      child: ClipRRect(
+                        borderRadius: const BorderRadius.all(
+                          Radius.circular(1),
+                        ),
+                        child: _CoverPreview(
+                          edition: edition,
+                          repository: repository,
+                          online: online,
+                          fit: BoxFit.cover,
+                          compact: true,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                  ],
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          edition.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: textTheme.bodyLarge?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: selected ? palette.onAccent : null,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${edition.format} · ${edition.isbn ?? 'No ISBN'}',
+                          style: textTheme.bodySmall?.copyWith(
+                            color: selected
+                                ? palette.onAccent
+                                : palette.inkMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  StatusTag(
+                    status: edition.publicationStatus,
+                    label: _statusLabel(edition.publicationStatus),
+                  ),
+                ],
+              ),
+            ),
           ),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => onSelect(edition),
         );
       },
     );
   }
-
-  String _dateLabel(String value) => switch (value.length) {
-    4 => '$value · year only',
-    7 => '$value · month only',
-    10 => value,
-    _ => 'Date not set',
-  };
 }
 
 class _DetailPrompt extends StatelessWidget {
   const _DetailPrompt();
 
   @override
-  Widget build(BuildContext context) => Center(
-    child: Text(
-      'Select an edition to review its details.',
-      style: Theme.of(context).textTheme.bodyLarge,
-      textAlign: TextAlign.center,
-    ),
-  );
+  Widget build(BuildContext context) {
+    final palette = ShelfPalette.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Opacity(opacity: 0.5, child: const ShelfMark(size: 36)),
+            const SizedBox(height: 22),
+            Text(
+              'Select an edition to review its details.',
+              style: Theme.of(context).textTheme.bodyMedium
+                  ?.copyWith(color: palette.inkMuted),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _EditionDetails extends StatelessWidget {
   const _EditionDetails({
+    super.key,
     required this.edition,
     required this.repository,
     required this.online,
+    this.showTitle = true,
+    this.padding = EdgeInsets.zero,
     this.onEdit,
     this.onEditRelationships,
     this.onAddEdition,
@@ -1635,6 +2299,8 @@ class _EditionDetails extends StatelessWidget {
   final CatalogEdition edition;
   final CatalogRepository repository;
   final bool online;
+  final bool showTitle;
+  final EdgeInsets padding;
   final VoidCallback? onEdit;
   final VoidCallback? onEditRelationships;
   final VoidCallback? onAddEdition;
@@ -1647,43 +2313,145 @@ class _EditionDetails extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = ShelfPalette.of(context);
+    final textTheme = Theme.of(context).textTheme;
     final credits = edition.credits;
+    final byline = credits
+        .where((credit) => credit.role == 'author')
+        .map((credit) => credit.contributor.name)
+        .join(', ');
+    Widget section(String title) => Padding(
+      padding: const EdgeInsets.only(top: 22, bottom: 8),
+      child: Text(
+        title,
+        style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+      ),
+    );
     return SingleChildScrollView(
+      padding: padding,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          AspectRatio(
-            aspectRatio: 0.72,
-            child: _CoverPreview(
-              edition: edition,
-              repository: repository,
-              online: online,
-              fit: BoxFit.contain,
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 112,
+                decoration: const BoxDecoration(
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0x33000000),
+                      offset: Offset(0, 4),
+                      blurRadius: 10,
+                    ),
+                  ],
+                ),
+                child: AspectRatio(
+                  aspectRatio: 2 / 3,
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.all(Radius.circular(2)),
+                    child: _CoverPreview(
+                      edition: edition,
+                      repository: repository,
+                      online: online,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 18),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (showTitle) ...[
+                      SelectableText(
+                        edition.title,
+                        style: textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          height: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                    ],
+                    if (byline.isNotEmpty) ...[
+                      Text(
+                        byline,
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: palette.inkMuted,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                    ],
+                    StatusTag(
+                      status: edition.publicationStatus,
+                      label: _statusLabel(edition.publicationStatus),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 22),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: IsbnLabel(isbn: edition.isbn),
           ),
           const SizedBox(height: 18),
-          _DetailLine(label: 'Format', value: edition.format),
-          _DetailLine(label: 'Language', value: edition.language),
-          _DetailLine(
-            label: 'Publication status',
-            value: edition.publicationStatus,
+          _FactGrid(
+            facts: [
+              ('Format', edition.format, false),
+              ('Language', edition.language, true),
+              (
+                'Release date',
+                edition.releaseDate ?? 'Not set',
+                edition.releaseDate != null,
+              ),
+              ('ISBN-13', edition.isbn ?? 'Not assigned', edition.isbn != null),
+            ],
           ),
-          _DetailLine(label: 'ISBN-13', value: edition.isbn ?? 'Not assigned'),
-          _DetailLine(
-            label: 'Release date',
-            value: edition.releaseDate ?? 'Not set',
+          _DetailLine(label: 'Work ID', value: edition.workId, mono: true),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: const Size(0, 32),
+              ),
+              onPressed: onShowWork,
+              child: const Text('Show all editions of this work'),
+            ),
           ),
-          _DetailLine(label: 'Work ID', value: edition.workId),
-          TextButton(
-            onPressed: onShowWork,
-            child: const Text('Show all editions of this work'),
-          ),
+          if (onEdit != null) ...[
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton(
+                    onPressed: onEdit,
+                    child: const Text('Edit edition'),
+                  ),
+                ),
+                if (onAddEdition != null) ...[
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: coverBusy ? null : onAddEdition,
+                      child: const Text(
+                        'Add another edition',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
           if (credits.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Text('Contributors', style: Theme.of(context).textTheme.titleSmall),
+            section('Contributors'),
             Wrap(
-              spacing: 8,
-              runSpacing: 4,
+              spacing: 6,
+              runSpacing: 6,
               children: [
                 for (final credit in credits)
                   ActionChip(
@@ -1696,11 +2464,10 @@ class _EditionDetails extends StatelessWidget {
             ),
           ],
           if (edition.categories.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Text('Categories', style: Theme.of(context).textTheme.titleSmall),
+            section('Categories'),
             Wrap(
-              spacing: 8,
-              runSpacing: 4,
+              spacing: 6,
+              runSpacing: 6,
               children: [
                 for (final category in edition.categoryReferences)
                   ActionChip(
@@ -1712,61 +2479,91 @@ class _EditionDetails extends StatelessWidget {
               ],
             ),
           ],
-          if (edition.description.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Text('Description', style: Theme.of(context).textTheme.titleSmall),
-            Text(edition.description),
-          ],
-          if (onEdit != null) ...[
-            const SizedBox(height: 16),
-            FilledButton.tonal(
-              onPressed: onEdit,
-              child: const Text('Edit edition'),
-            ),
-          ],
           if (onEditRelationships != null)
-            TextButton(
-              onPressed: coverBusy ? null : onEditRelationships,
-              child: const Text('Edit contributors and categories'),
-            ),
-          if (onAddEdition != null)
-            TextButton.icon(
-              onPressed: coverBusy ? null : onAddEdition,
-              icon: const Icon(Icons.library_books_outlined),
-              label: const Text('Add another edition'),
-            ),
-          if (onChooseCover != null) ...[
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: coverBusy ? null : onChooseCover,
-              icon: coverBusy
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.add_photo_alternate_outlined),
-              label: Text(
-                coverBusy
-                    ? 'Uploading cover…'
-                    : edition.coverKey == null
-                    ? 'Add cover'
-                    : 'Replace cover',
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                style: TextButton.styleFrom(padding: EdgeInsets.zero),
+                onPressed: coverBusy ? null : onEditRelationships,
+                child: const Text('Edit contributors and categories'),
               ),
+            ),
+          if (edition.description.isNotEmpty) ...[
+            section('Description'),
+            SelectableText(
+              edition.description,
+              style: textTheme.bodyMedium?.copyWith(height: 1.5),
             ),
           ],
-          if (onRemoveCover != null) ...[
-            const SizedBox(height: 4),
-            TextButton.icon(
-              onPressed: coverBusy ? null : onRemoveCover,
-              icon: const Icon(Icons.delete_outline),
-              label: const Text('Remove cover'),
-              style: TextButton.styleFrom(
-                foregroundColor: Theme.of(context).colorScheme.error,
-              ),
+          if (onChooseCover != null || onRemoveCover != null) ...[
+            section('Cover'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                if (onChooseCover != null)
+                  OutlinedButton.icon(
+                    onPressed: coverBusy ? null : onChooseCover,
+                    icon: coverBusy
+                        ? const SizedBox.square(
+                            dimension: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(
+                            Icons.add_photo_alternate_outlined,
+                            size: 18,
+                          ),
+                    label: Text(
+                      coverBusy
+                          ? 'Uploading cover…'
+                          : edition.coverKey == null
+                          ? 'Add cover'
+                          : 'Replace cover',
+                    ),
+                  ),
+                if (onRemoveCover != null)
+                  TextButton.icon(
+                    onPressed: coverBusy ? null : onRemoveCover,
+                    icon: const Icon(Icons.delete_outline, size: 18),
+                    label: const Text('Remove cover'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+              ],
             ),
           ],
         ],
       ),
+    );
+  }
+}
+
+class _FactGrid extends StatelessWidget {
+  const _FactGrid({required this.facts});
+
+  final List<(String, String, bool)> facts;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = ShelfPalette.of(context);
+    final rows = <TableRow>[];
+    for (var index = 0; index < facts.length; index += 2) {
+      rows.add(
+        TableRow(
+          children: [
+            for (final fact in facts.skip(index).take(2))
+              _DetailLine(label: fact.$1, value: fact.$2, mono: fact.$3),
+            if (index + 1 >= facts.length) const SizedBox.shrink(),
+          ],
+        ),
+      );
+    }
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: palette.hairline)),
+      ),
+      child: Table(children: rows),
     );
   }
 }
@@ -1777,76 +2574,122 @@ class _CoverPreview extends StatelessWidget {
     required this.repository,
     required this.fit,
     required this.online,
+    this.compact = false,
   });
 
   final CatalogEdition edition;
   final CatalogRepository repository;
   final BoxFit fit;
   final bool online;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final key = edition.coverKey;
     return ColoredBox(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      color: ShelfPalette.of(context).blankBoard,
       child: key == null
-          ? _coverStatus(context, 'No cover')
+          ? _blankBoard(context, null)
           : !online
-          ? _coverStatus(context, 'Cover not cached')
+          ? _blankBoard(context, 'Cover not cached')
           : FutureBuilder<String>(
               future: repository.signedCoverUrl(key),
               builder: (context, snapshot) {
                 if (!snapshot.hasData) {
-                  return _coverStatus(
+                  return _blankBoard(
                     context,
-                    snapshot.hasError ? 'Cover unavailable' : 'Loading cover…',
+                    snapshot.hasError ? 'Cover unavailable' : null,
                   );
                 }
                 return Image.network(
                   snapshot.data!,
                   fit: fit,
+                  width: double.infinity,
+                  height: double.infinity,
                   semanticLabel: 'Cover of ${edition.title}',
                   errorBuilder: (context, error, stackTrace) =>
-                      _coverStatus(context, 'Cover unavailable'),
+                      _blankBoard(context, 'Cover unavailable'),
                 );
               },
             ),
     );
   }
 
-  Widget _coverStatus(BuildContext context, String label) => Center(
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          Icons.menu_book_outlined,
-          size: 38,
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
-        ),
-        const SizedBox(height: 8),
-        Text(label, style: Theme.of(context).textTheme.labelMedium),
-      ],
-    ),
-  );
+  Widget _blankBoard(BuildContext context, String? note) {
+    if (compact) return const SizedBox.expand();
+    final palette = ShelfPalette.of(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final small = constraints.maxWidth < 140;
+        return Padding(
+          padding: EdgeInsets.all(small ? 10 : 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(height: 2, width: 28, color: palette.inkMuted),
+              SizedBox(height: small ? 8 : 12),
+              Expanded(
+                child: Text(
+                  edition.title,
+                  overflow: TextOverflow.fade,
+                  style: TextStyle(
+                    fontSize: small ? 11 : 16,
+                    height: 1.2,
+                    fontWeight: FontWeight.w700,
+                    color: palette.inkMuted,
+                  ),
+                ),
+              ),
+              Text(
+                note ?? 'No cover',
+                style: TextStyle(
+                  fontSize: small ? 9 : 11,
+                  color: palette.inkMuted,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 }
 
 class _DetailLine extends StatelessWidget {
-  const _DetailLine({required this.label, required this.value});
+  const _DetailLine({
+    required this.label,
+    required this.value,
+    this.mono = false,
+  });
 
   final String label;
   final String value;
+  final bool mono;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(top: 10),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: Theme.of(context).textTheme.labelMedium),
-        SelectableText(value),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) {
+    final palette = ShelfPalette.of(context);
+    final textTheme = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.only(top: 10, right: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: textTheme.labelSmall?.copyWith(color: palette.inkMuted),
+          ),
+          const SizedBox(height: 2),
+          SelectableText(
+            value,
+            style: mono
+                ? shelfMono.copyWith(fontSize: 13, color: palette.ink)
+                : textTheme.bodyMedium,
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class MembershipManagementScreen extends StatefulWidget {
@@ -2421,63 +3264,86 @@ class _CatalogError extends StatelessWidget {
   final bool showingCachedSnapshot;
   final OfflineLease? lease;
 
+  static String _stamp(DateTime value) {
+    final local = value.toLocal();
+    String two(int number) => number.toString().padLeft(2, '0');
+    return '${local.year}-${two(local.month)}-${two(local.day)} ${two(local.hour)}:${two(local.minute)}';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final palette = ShelfPalette.of(context);
+    final textTheme = Theme.of(context).textTheme;
     if (showingCachedSnapshot) {
-      return Material(
-        color: Theme.of(context).colorScheme.surfaceContainerLow,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.cloud_off_outlined),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Showing the verified saved catalog read-only. Reconnect and reload to edit.'
-                      '${lease == null ? '' : '\nVerified ${lease!.issuedAt.toLocal()}. Offline access ends ${lease!.expiresAt.toLocal()}.'}',
-                    ),
-                  ),
-                ],
+      return Container(
+        padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+        decoration: BoxDecoration(
+          color: palette.paper,
+          borderRadius: shelfRadius,
+          border: Border.all(color: palette.hairline),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.cloud_off_outlined, size: 18, color: palette.inkMuted),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Showing the verified saved catalog read-only. Reconnect and reload to edit.'
+                '${lease == null ? '' : '\nVerified ${_stamp(lease!.issuedAt)}. Offline access ends ${_stamp(lease!.expiresAt)}.'}',
+                style: textTheme.bodySmall?.copyWith(height: 1.45),
               ),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: onRetry,
-                  child: const Text('Try again'),
-                ),
-              ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 8),
+            OutlinedButton(onPressed: onRetry, child: const Text('Try again')),
+          ],
         ),
       );
     }
     return Expanded(
       child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 560),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                error is OfflineAccessUnavailable
-                    ? 'Offline access unavailable'
-                    : error is CatalogAccessDenied
-                    ? 'Catalog access is not approved'
-                    : 'Catalog could not be loaded',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 8),
-              Text(error.toString(), textAlign: TextAlign.center),
-              const SizedBox(height: 16),
-              FilledButton.tonal(
-                onPressed: onRetry,
-                child: const Text('Try again'),
-              ),
-            ],
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  error is OfflineAccessUnavailable
+                      ? Icons.cloud_off_outlined
+                      : error is CatalogAccessDenied
+                      ? Icons.lock_outline
+                      : Icons.error_outline,
+                  size: 28,
+                  color: palette.inkMuted,
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  error is OfflineAccessUnavailable
+                      ? 'Offline access unavailable'
+                      : error is CatalogAccessDenied
+                      ? 'Catalog access is not approved'
+                      : 'Catalog could not be loaded',
+                  style: textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SelectableText(
+                  error.toString(),
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: palette.inkMuted,
+                    height: 1.45,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                FilledButton(
+                  onPressed: onRetry,
+                  child: const Text('Try again'),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -2486,22 +3352,66 @@ class _CatalogError extends StatelessWidget {
 }
 
 class _EmptyResults extends StatelessWidget {
-  const _EmptyResults({required this.query, required this.onClear});
+  const _EmptyResults({
+    required this.query,
+    required this.onClear,
+    this.filtered = false,
+    this.onClearFilters,
+  });
 
   final String query;
   final VoidCallback onClear;
+  final bool filtered;
+  final VoidCallback? onClearFilters;
 
   @override
-  Widget build(BuildContext context) => Center(
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(query.isEmpty ? 'No editions in this catalog.' : 'No matches.'),
-        if (query.isNotEmpty)
-          TextButton(onPressed: onClear, child: const Text('Clear search')),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) {
+    final palette = ShelfPalette.of(context);
+    final textTheme = Theme.of(context).textTheme;
+    final narrowed = query.isNotEmpty || filtered;
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              narrowed
+                  ? 'No editions match.'
+                  : 'No editions in this catalog yet.',
+              style: textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              narrowed
+                  ? 'Try a broader search or remove a filter.'
+                  : 'Add an edition or import a file to start the catalog.',
+              textAlign: TextAlign.center,
+              style: textTheme.bodyMedium?.copyWith(color: palette.inkMuted),
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 8,
+              children: [
+                if (query.isNotEmpty)
+                  OutlinedButton(
+                    onPressed: onClear,
+                    child: const Text('Clear search'),
+                  ),
+                if (filtered && onClearFilters != null)
+                  OutlinedButton(
+                    onPressed: onClearFilters,
+                    child: const Text('Clear filters'),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class EditionMetadataDialog extends StatefulWidget {

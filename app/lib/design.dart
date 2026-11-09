@@ -18,6 +18,7 @@ class ShelfPalette extends ThemeExtension<ShelfPalette> {
     required this.ink,
     required this.inkMuted,
     required this.hairline,
+    required this.inputBorder,
     required this.accent,
     required this.onAccent,
     required this.accentInk,
@@ -31,6 +32,7 @@ class ShelfPalette extends ThemeExtension<ShelfPalette> {
   final Color ink;
   final Color inkMuted;
   final Color hairline;
+  final Color inputBorder;
   final Color accent;
   final Color onAccent;
 
@@ -50,6 +52,7 @@ class ShelfPalette extends ThemeExtension<ShelfPalette> {
     ink: Color(0xff1f1b1c),
     inkMuted: Color(0xff6a6365),
     hairline: Color(0xffe3dfdc),
+    inputBorder: Color(0xff827a7d),
     accent: Color(0xff65172d),
     onAccent: Color(0xffffffff),
     accentInk: Color(0xff65172d),
@@ -64,6 +67,7 @@ class ShelfPalette extends ThemeExtension<ShelfPalette> {
     ink: Color(0xffece7e8),
     inkMuted: Color(0xffa39c9e),
     hairline: Color(0xff343032),
+    inputBorder: Color(0xff7d7578),
     accent: Color(0xff7e2a41),
     onAccent: Color(0xffffffff),
     accentInk: Color(0xffdda3af),
@@ -82,6 +86,7 @@ class ShelfPalette extends ThemeExtension<ShelfPalette> {
     Color? ink,
     Color? inkMuted,
     Color? hairline,
+    Color? inputBorder,
     Color? accent,
     Color? onAccent,
     Color? accentInk,
@@ -94,6 +99,7 @@ class ShelfPalette extends ThemeExtension<ShelfPalette> {
     ink: ink ?? this.ink,
     inkMuted: inkMuted ?? this.inkMuted,
     hairline: hairline ?? this.hairline,
+    inputBorder: inputBorder ?? this.inputBorder,
     accent: accent ?? this.accent,
     onAccent: onAccent ?? this.onAccent,
     accentInk: accentInk ?? this.accentInk,
@@ -111,6 +117,7 @@ class ShelfPalette extends ThemeExtension<ShelfPalette> {
       ink: Color.lerp(ink, other.ink, t)!,
       inkMuted: Color.lerp(inkMuted, other.inkMuted, t)!,
       hairline: Color.lerp(hairline, other.hairline, t)!,
+      inputBorder: Color.lerp(inputBorder, other.inputBorder, t)!,
       accent: Color.lerp(accent, other.accent, t)!,
       onAccent: Color.lerp(onAccent, other.onAccent, t)!,
       accentInk: Color.lerp(accentInk, other.accentInk, t)!,
@@ -134,6 +141,119 @@ const shelfMono = TextStyle(
 );
 
 const shelfRadius = BorderRadius.all(Radius.circular(4));
+const shelfFormSpacing = 16.0;
+
+class ShelfDialogTitle extends StatelessWidget {
+  const ShelfDialogTitle({
+    super.key,
+    required this.title,
+    this.error,
+    this.busy = false,
+  });
+
+  final String title;
+  final String? error;
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context) {
+    final visibleHeight =
+        MediaQuery.sizeOf(context).height -
+        MediaQuery.viewInsetsOf(context).vertical;
+    final maxErrorHeight = (visibleHeight * 0.25).clamp(0.0, 120.0);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title),
+        if (error case final message?)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: maxErrorHeight),
+              child: ShelfFormScroll(
+                child: Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    message,
+                    style: Theme.of(context).textTheme.bodySmall
+                        ?.copyWith(color: Theme.of(context).colorScheme.error),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        if (busy)
+          const Padding(
+            padding: EdgeInsets.only(top: 12),
+            child: LinearProgressIndicator(),
+          ),
+      ],
+    );
+  }
+}
+
+class ShelfFormScroll extends StatefulWidget {
+  const ShelfFormScroll({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  State<ShelfFormScroll> createState() => _ShelfFormScrollState();
+}
+
+class _ShelfFormScrollState extends State<ShelfFormScroll> {
+  final _controller = ScrollController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => ScrollConfiguration(
+    behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+    child: Scrollbar(
+      controller: _controller,
+      thumbVisibility: true,
+      child: SingleChildScrollView(
+        controller: _controller,
+        child: widget.child,
+      ),
+    ),
+  );
+}
+
+class ShelfFormRow extends StatelessWidget {
+  const ShelfFormRow({super.key, required this.first, required this.second});
+
+  final Widget first;
+  final Widget second;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
+      final minimumFieldWidth = 208 * (scale > 1 ? scale : 1.0);
+      if (constraints.maxWidth < minimumFieldWidth * 2 + shelfFormSpacing) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: shelfFormSpacing,
+          children: [first, second],
+        );
+      }
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: first),
+          const SizedBox(width: shelfFormSpacing),
+          Expanded(child: second),
+        ],
+      );
+    },
+  );
+}
 
 ThemeData buildBookalogTheme(Brightness brightness) {
   final palette = brightness == Brightness.light
@@ -221,6 +341,7 @@ ThemeData buildBookalogTheme(Brightness brightness) {
   const buttonSize = Size(0, 36);
   const buttonPadding = EdgeInsets.symmetric(horizontal: 14);
   final hairlineSide = BorderSide(color: palette.hairline);
+  final inputSide = BorderSide(color: palette.inputBorder);
   return base.copyWith(
     textTheme: text,
     scaffoldBackgroundColor: palette.canvas,
@@ -305,14 +426,15 @@ ThemeData buildBookalogTheme(Brightness brightness) {
       filled: true,
       fillColor: palette.paper,
       isDense: true,
+      floatingLabelBehavior: FloatingLabelBehavior.always,
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       border: OutlineInputBorder(
         borderRadius: shelfRadius,
-        borderSide: hairlineSide,
+        borderSide: inputSide,
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: shelfRadius,
-        borderSide: hairlineSide,
+        borderSide: inputSide,
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: shelfRadius,

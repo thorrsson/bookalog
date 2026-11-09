@@ -15,6 +15,7 @@ The 3 Little Sisters storefront brand.
 | ink | `#1F1B1C` | `#ECE7E8` | Primary text |
 | inkMuted | `#6A6365` | `#A39C9E` | Secondary text, counts |
 | hairline | `#E3DFDC` | `#343032` | 1px dividers and borders |
+| inputBorder | `#827A7D` | `#7D7578` | Input boundaries, at least 3:1 against adjacent surfaces |
 | accent | `#65172D` (brand burgundy) | `#7E2A41` (lifted burgundy) | Primary button fill and the brand mark only |
 | onAccent | `#FFFFFF` | `#FFFFFF` | Text on accent |
 | accentInk | `#65172D` | `#DDA3AF` (dusty rose) | Selected text and icons, text buttons, focus rings |
@@ -50,6 +51,12 @@ Rules:
 - **Appearance**: Match system / Light / Dark. The choice is saved per device
   and defaults to following the OS. On narrower windows it lives in the
   Catalog tools menu.
+- **Forms**: retain visible field labels and separate controls by 16 logical
+  pixels, including after counters and helper text. Related fields share a row
+  only when each has at least 208 logical pixels, scaled for enlarged text;
+  otherwise they stack in the same reading and keyboard order. Dialog bodies
+  show a scrollbar when needed, while their actions and validation messages
+  remain visible.
 - **Toolbar**: search, Filters, reload and one filled "New edition" action.
 - **Covers**: full-bleed 2:3 with a soft shadow. Missing covers show a blank
   board with the title.

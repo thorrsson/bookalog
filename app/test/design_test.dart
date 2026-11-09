@@ -22,6 +22,25 @@ void main() {
     }
   });
 
+  test('input boundaries are distinguishable in both themes', () {
+    for (final brightness in Brightness.values) {
+      final theme = buildBookalogTheme(brightness);
+      final palette = brightness == Brightness.light
+          ? ShelfPalette.light
+          : ShelfPalette.dark;
+      final border =
+          theme.inputDecorationTheme.enabledBorder! as OutlineInputBorder;
+      expect(
+        _contrast(border.borderSide.color, palette.paper),
+        greaterThanOrEqualTo(3),
+      );
+      expect(
+        _contrast(border.borderSide.color, palette.canvas),
+        greaterThanOrEqualTo(3),
+      );
+    }
+  });
+
   test('encodes a valid ISBN-13 as 95 EAN-13 modules with guards', () {
     final modules = ean13Modules('9780306406157');
 

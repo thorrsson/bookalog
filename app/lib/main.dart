@@ -196,10 +196,14 @@ class _Wordmark extends StatelessWidget {
     children: [
       const ShelfMark(),
       const SizedBox(width: 10),
-      Text(
-        'Bookalog',
-        style: Theme.of(context).textTheme.titleMedium
-            ?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.2),
+      Flexible(
+        child: Text(
+          'Bookalog',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.titleMedium
+              ?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.2),
+        ),
       ),
     ],
   );
@@ -2990,42 +2994,36 @@ class _AddMemberDialogState extends State<_AddMemberDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Add catalog member'),
+    title: ShelfDialogTitle(title: 'Add catalog member', error: _error),
     content: SizedBox(
       width: 420,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: _email,
-            autofocus: true,
-            keyboardType: TextInputType.emailAddress,
-            decoration: const InputDecoration(labelText: 'Account email'),
-          ),
-          DropdownButtonFormField<CatalogRole>(
-            initialValue: _role,
-            decoration: const InputDecoration(labelText: 'Catalog role'),
-            items: CatalogRole.values
-                .map(
-                  (role) =>
-                      DropdownMenuItem(value: role, child: Text(role.label)),
-                )
-                .toList(),
-            onChanged: (role) {
-              if (role != null) setState(() => _role = role);
-            },
-          ),
-          if (_error case final error?) ...[
-            const SizedBox(height: 12),
-            Semantics(
-              liveRegion: true,
-              child: Text(
-                error,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
+      child: ShelfFormScroll(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: shelfFormSpacing,
+          children: [
+            TextField(
+              controller: _email,
+              autofocus: true,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(labelText: 'Account email'),
+            ),
+            DropdownButtonFormField<CatalogRole>(
+              initialValue: _role,
+              decoration: const InputDecoration(labelText: 'Catalog role'),
+              items: CatalogRole.values
+                  .map(
+                    (role) =>
+                        DropdownMenuItem(value: role, child: Text(role.label)),
+                  )
+                  .toList(),
+              onChanged: (role) {
+                if (role != null) setState(() => _role = role);
+              },
             ),
           ],
-        ],
+        ),
       ),
     ),
     actions: [
@@ -3064,33 +3062,34 @@ class _EditMemberDialogState extends State<_EditMemberDialog> {
     title: const Text('Member access'),
     content: SizedBox(
       width: 420,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Text(widget.member.email),
-          ),
-          DropdownButtonFormField<CatalogRole>(
-            initialValue: _role,
-            decoration: const InputDecoration(labelText: 'Catalog role'),
-            items: CatalogRole.values
-                .map(
-                  (role) =>
-                      DropdownMenuItem(value: role, child: Text(role.label)),
-                )
-                .toList(),
-            onChanged: (role) {
-              if (role != null) setState(() => _role = role);
-            },
-          ),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Active membership'),
-            value: _active,
-            onChanged: (value) => setState(() => _active = value),
-          ),
-        ],
+      child: ShelfFormScroll(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: shelfFormSpacing,
+          children: [
+            Text(widget.member.email),
+            DropdownButtonFormField<CatalogRole>(
+              initialValue: _role,
+              decoration: const InputDecoration(labelText: 'Catalog role'),
+              items: CatalogRole.values
+                  .map(
+                    (role) =>
+                        DropdownMenuItem(value: role, child: Text(role.label)),
+                  )
+                  .toList(),
+              onChanged: (role) {
+                if (role != null) setState(() => _role = role);
+              },
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Active membership'),
+              value: _active,
+              onChanged: (value) => setState(() => _active = value),
+            ),
+          ],
+        ),
       ),
     ),
     actions: [
@@ -3192,25 +3191,29 @@ class _CatalogFilterDialogState extends State<_CatalogFilterDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Filter catalog'),
+    title: ShelfDialogTitle(title: 'Filter catalog', error: _error),
     content: SizedBox(
       width: 460,
-      child: SingleChildScrollView(
+      child: ShelfFormScroll(
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: shelfFormSpacing,
           children: [
-            TextField(
-              controller: _category,
-              decoration: const InputDecoration(
-                labelText: 'Category contains',
-                hintText: 'e.g. Fiction',
+            ShelfFormRow(
+              first: TextField(
+                controller: _category,
+                decoration: const InputDecoration(
+                  labelText: 'Category contains',
+                  hintText: 'e.g. Fiction',
+                ),
               ),
-            ),
-            TextField(
-              controller: _contributor,
-              decoration: const InputDecoration(
-                labelText: 'Contributor contains',
-                hintText: 'e.g. surname',
+              second: TextField(
+                controller: _contributor,
+                decoration: const InputDecoration(
+                  labelText: 'Contributor contains',
+                  hintText: 'e.g. surname',
+                ),
               ),
             ),
             DropdownButtonFormField<String>(
@@ -3239,45 +3242,40 @@ class _CatalogFilterDialogState extends State<_CatalogFilterDialog> {
                 hintText: 'YYYY, YYYY-MM, or YYYY-MM-DD',
               ),
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _releaseFrom,
-              decoration: const InputDecoration(
-                labelText: 'Release range: from',
-                hintText: 'YYYY-MM-DD',
-              ),
-            ),
-            TextField(
-              controller: _releaseThrough,
-              decoration: const InputDecoration(
-                labelText: 'Release range: through',
-                hintText: 'YYYY-MM-DD',
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Includes year-only and month-only dates that could fall in the range. Unknown dates are excluded.',
-            ),
-            TextButton(
-              onPressed: () {
-                final today = DateTime.now();
-                _releaseFrom.text = catalogDate(today);
-                _releaseThrough.text = catalogDate(sixMonthsAfter(today));
-                _releaseDate.clear();
-                setState(() => _error = null);
-              },
-              child: const Text('Next six months'),
-            ),
-            if (_error case final error?) ...[
-              const SizedBox(height: 12),
-              Semantics(
-                liveRegion: true,
-                child: Text(
-                  error,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ShelfFormRow(
+              first: TextField(
+                controller: _releaseFrom,
+                decoration: const InputDecoration(
+                  labelText: 'Release range: from',
+                  hintText: 'YYYY-MM-DD',
                 ),
               ),
-            ],
+              second: TextField(
+                controller: _releaseThrough,
+                decoration: const InputDecoration(
+                  labelText: 'Release range: through',
+                  hintText: 'YYYY-MM-DD',
+                ),
+              ),
+            ),
+            Text(
+              'Includes year-only and month-only dates that could fall in the range. Unknown dates are excluded.',
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: ShelfPalette.of(context).inkMuted),
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: () {
+                  final today = DateTime.now();
+                  _releaseFrom.text = catalogDate(today);
+                  _releaseThrough.text = catalogDate(sixMonthsAfter(today));
+                  _releaseDate.clear();
+                  setState(() => _error = null);
+                },
+                child: const Text('Next six months'),
+              ),
+            ),
           ],
         ),
       ),
@@ -3527,6 +3525,18 @@ class _EditionMetadataDialogState extends State<EditionMetadataDialog> {
         : 'Enter a real date as YYYY, YYYY-MM, or YYYY-MM-DD.';
   }
 
+  String? get _errorMessage {
+    final error = _error;
+    if (error == null) return null;
+    if (_connectivityLost) {
+      return 'Connection lost. Your draft is still here, but editing is paused until you reconnect.';
+    }
+    if (error is PostgrestException && error.code == 'PT409') {
+      return 'This edition changed elsewhere. Your draft is still here; copy it before canceling and reloading.';
+    }
+    return error.toString();
+  }
+
   Future<void> _save() async {
     final title = _title.text.trim();
     final language = _language.text.trim();
@@ -3596,13 +3606,18 @@ class _EditionMetadataDialogState extends State<EditionMetadataDialog> {
   Widget build(BuildContext context) => PopScope(
     canPop: !_busy,
     child: AlertDialog(
-      title: Text(widget.edition == null ? 'Add edition' : 'Edit edition'),
+      title: ShelfDialogTitle(
+        title: widget.edition == null ? 'Add edition' : 'Edit edition',
+        error: _errorMessage,
+        busy: _busy,
+      ),
       content: SizedBox(
         width: 520,
-        child: SingleChildScrollView(
+        child: ShelfFormScroll(
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: shelfFormSpacing,
             children: [
               Text(
                 widget.edition == null
@@ -3610,8 +3625,9 @@ class _EditionMetadataDialogState extends State<EditionMetadataDialog> {
                           ? 'Creates a new work with its first edition.'
                           : 'Adds an edition to the selected work. ISBN, credits, categories and cover are not copied.'
                     : 'Saving against revision ${widget.edition!.revision}.',
+                style: Theme.of(context).textTheme.bodyMedium
+                    ?.copyWith(color: ShelfPalette.of(context).inkMuted),
               ),
-              const SizedBox(height: 16),
               TextField(
                 controller: _title,
                 enabled: !_busy && !_connectivityLost,
@@ -3619,65 +3635,77 @@ class _EditionMetadataDialogState extends State<EditionMetadataDialog> {
                 autofocus: true,
                 decoration: const InputDecoration(labelText: 'Title'),
               ),
-              DropdownButtonFormField<String>(
-                initialValue: _format,
-                decoration: const InputDecoration(labelText: 'Format'),
-                items: const [
-                  DropdownMenuItem(
-                    value: 'paperback',
-                    child: Text('Paperback'),
+              ShelfFormRow(
+                first: DropdownButtonFormField<String>(
+                  initialValue: _format,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Format'),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'paperback',
+                      child: Text('Paperback'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'hardback',
+                      child: Text('Hardback'),
+                    ),
+                    DropdownMenuItem(value: 'ebook', child: Text('Ebook')),
+                    DropdownMenuItem(value: 'audio', child: Text('Audio')),
+                  ],
+                  onChanged: _busy || _connectivityLost
+                      ? null
+                      : (value) {
+                          if (value != null) setState(() => _format = value);
+                        },
+                ),
+                second: TextField(
+                  controller: _language,
+                  enabled: !_busy && !_connectivityLost,
+                  decoration: const InputDecoration(
+                    labelText: 'Language code',
+                    hintText: 'en',
                   ),
-                  DropdownMenuItem(value: 'hardback', child: Text('Hardback')),
-                  DropdownMenuItem(value: 'ebook', child: Text('Ebook')),
-                  DropdownMenuItem(value: 'audio', child: Text('Audio')),
-                ],
-                onChanged: _busy || _connectivityLost
-                    ? null
-                    : (value) {
-                        if (value != null) setState(() => _format = value);
-                      },
-              ),
-              TextField(
-                controller: _language,
-                enabled: !_busy && !_connectivityLost,
-                decoration: const InputDecoration(
-                  labelText: 'Language code',
-                  hintText: 'en',
                 ),
               ),
-              TextField(
-                controller: _isbn,
-                enabled: !_busy && !_connectivityLost,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'ISBN-13',
-                  hintText: 'Optional',
-                ),
-              ),
-              DropdownButtonFormField<String>(
-                initialValue: _publicationStatus,
-                decoration: const InputDecoration(
-                  labelText: 'Publication status',
-                ),
-                items: const [
-                  DropdownMenuItem(value: 'planned', child: Text('Planned')),
-                  DropdownMenuItem(
-                    value: 'announced',
-                    child: Text('Announced'),
+              ShelfFormRow(
+                first: TextField(
+                  controller: _isbn,
+                  enabled: !_busy && !_connectivityLost,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'ISBN-13',
+                    hintText: 'Optional',
                   ),
-                  DropdownMenuItem(value: 'released', child: Text('Released')),
-                  DropdownMenuItem(
-                    value: 'out_of_print',
-                    child: Text('Out of print'),
+                ),
+                second: DropdownButtonFormField<String>(
+                  initialValue: _publicationStatus,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Publication status',
                   ),
-                ],
-                onChanged: _busy || _connectivityLost
-                    ? null
-                    : (value) {
-                        if (value != null) {
-                          setState(() => _publicationStatus = value);
-                        }
-                      },
+                  items: const [
+                    DropdownMenuItem(value: 'planned', child: Text('Planned')),
+                    DropdownMenuItem(
+                      value: 'announced',
+                      child: Text('Announced'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'released',
+                      child: Text('Released'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'out_of_print',
+                      child: Text('Out of print'),
+                    ),
+                  ],
+                  onChanged: _busy || _connectivityLost
+                      ? null
+                      : (value) {
+                          if (value != null) {
+                            setState(() => _publicationStatus = value);
+                          }
+                        },
+                ),
               ),
               TextField(
                 controller: _releaseDate,
@@ -3695,22 +3723,6 @@ class _EditionMetadataDialogState extends State<EditionMetadataDialog> {
                 maxLines: 6,
                 decoration: const InputDecoration(labelText: 'Description'),
               ),
-              if (_busy) const LinearProgressIndicator(),
-              if (_error != null)
-                Semantics(
-                  liveRegion: true,
-                  child: Text(
-                    _connectivityLost
-                        ? 'Connection lost. Your draft is still here, but editing is paused until you reconnect.'
-                        : _error is PostgrestException &&
-                              (_error as PostgrestException).code == 'PT409'
-                        ? 'This edition changed elsewhere. Your draft is still here; copy it before canceling and reloading.'
-                        : _error.toString(),
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                ),
             ],
           ),
         ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'catalog.dart';
+import 'design.dart';
 
 class CatalogRelationshipsDialog extends StatefulWidget {
   const CatalogRelationshipsDialog({
@@ -145,10 +146,13 @@ class _CatalogRelationshipsDialogState
     return PopScope(
       canPop: !_saving,
       child: AlertDialog(
-        title: const Text('Contributors and categories'),
+        title: ShelfDialogTitle(
+          title: 'Contributors and categories',
+          error: _error,
+        ),
         content: SizedBox(
           width: 640,
-          child: SingleChildScrollView(
+          child: ShelfFormScroll(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisSize: MainAxisSize.min,
@@ -228,6 +232,7 @@ class _CatalogRelationshipsDialogState
                       hintText: 'author, illustrator, translator',
                     ),
                   ),
+                  const SizedBox(height: shelfFormSpacing),
                   _ReferencePicker(
                     label: 'Contributor',
                     options: options.contributors,
@@ -257,6 +262,7 @@ class _CatalogRelationshipsDialogState
                   ),
                   if (_categories.isEmpty)
                     const Text('No categories assigned.'),
+                  const SizedBox(height: shelfFormSpacing),
                   _ReferencePicker(
                     label: 'Category',
                     options: options.categories,
@@ -265,22 +271,12 @@ class _CatalogRelationshipsDialogState
                     onAdd: _addCategory,
                   ),
                 ],
-                if (_error case final error?) ...[
+                if (_error != null && options == null && !_loading) ...[
                   const SizedBox(height: 12),
-                  Semantics(
-                    liveRegion: true,
-                    child: Text(
-                      error,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                    ),
+                  TextButton(
+                    onPressed: _loadOptions,
+                    child: const Text('Retry loading choices'),
                   ),
-                  if (options == null && !_loading)
-                    TextButton(
-                      onPressed: _loadOptions,
-                      child: const Text('Retry loading choices'),
-                    ),
                 ],
               ],
             ),
@@ -391,6 +387,7 @@ class _ReferencePickerState extends State<_ReferencePicker> {
               ),
             ),
           ),
+          const SizedBox(height: 8),
           OutlinedButton.icon(
             onPressed: widget.enabled && valid
                 ? () {

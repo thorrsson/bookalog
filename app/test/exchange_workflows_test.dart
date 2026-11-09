@@ -296,6 +296,21 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('export options have a distinct, full-width ONIX section', (
+    tester,
+  ) async {
+    await open(tester, role: CatalogRole.viewer);
+    final export = tester.getRect(
+      find.widgetWithText(OutlinedButton, 'Export XLSX'),
+    );
+    final onix = tester.getRect(
+      find.widgetWithText(ExpansionTile, 'ONIX 3.0 core profile'),
+    );
+    expect(onix.top - export.bottom, greaterThanOrEqualTo(16));
+    expect(onix.width, greaterThan(export.width * 2));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('ONIX export requires publisher and both disclosures', (
     tester,
   ) async {

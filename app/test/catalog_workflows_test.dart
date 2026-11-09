@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:bookalog_catalog/appearance.dart';
 import 'package:bookalog_catalog/catalog.dart';
+import 'package:bookalog_catalog/design.dart';
 import 'package:bookalog_catalog/main.dart';
 import 'package:bookalog_catalog/relationships.dart';
 import 'package:bookalog_catalog/offline_cache.dart';
@@ -18,6 +19,7 @@ class _Repository extends CatalogRepository {
 
   final SupabaseClient client;
   Object? loadError;
+  Object? createError;
   String? offlineLeaseToken;
   String? createdWorkId;
   List<CatalogCredit>? savedCredits;
@@ -42,6 +44,16 @@ class _Repository extends CatalogRepository {
   }
 
   @override
+  Future<List<CatalogMember>> loadMembers() async => const [
+    CatalogMember(
+      userId: 'other-member',
+      email: 'editor@example.invalid',
+      role: CatalogRole.editor,
+      active: true,
+    ),
+  ];
+
+  @override
   Future<String> requestOfflineLease() async => offlineLeaseToken!;
 
   @override
@@ -64,6 +76,7 @@ class _Repository extends CatalogRepository {
     required String? releaseDate,
     required String description,
   }) async {
+    if (createError case final error?) throw error;
     createdWorkId = workId;
     return CatalogEdition.fromRecord({
       ...editionRecord(id: 'created-edition', title: title),
@@ -140,10 +153,12 @@ void main() {
   Future<void> openCatalog(
     WidgetTester tester, {
     double width = 1280,
+    double height = 1000,
     OfflineCatalogCache? offlineCache,
     AppearanceController? appearance,
+    ThemeData? theme,
   }) async {
-    tester.view.physicalSize = Size(width, 1000);
+    tester.view.physicalSize = Size(width, height);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -155,7 +170,7 @@ void main() {
     );
     await tester.pumpWidget(
       appearance == null
-          ? MaterialApp(home: screen)
+          ? MaterialApp(theme: theme, home: screen)
           : AppearanceScope(
               controller: appearance,
               child: ValueListenableBuilder(
@@ -213,6 +228,245 @@ void main() {
     await openCatalog(tester);
     expect(find.text('Appearance'), findsNothing);
     expect(find.byTooltip('Dark appearance'), findsNothing);
+  });
+
+  testWidgets('edition form groups fields with space for labels and helpers', (
+    tester,
+  ) async {
+    await openCatalog(tester, theme: buildBookalogTheme(Brightness.light));
+    await tester.tap(find.byTooltip('Add edition'));
+    await tester.pumpAndSettle();
+
+    final title = tester.getRect(find.widgetWithText(TextField, 'Title'));
+    final format = tester.getRect(
+      find.widgetWithText(DropdownButtonFormField<String>, 'Format'),
+    );
+    final language = tester.getRect(
+      find.widgetWithText(TextField, 'Language code'),
+    );
+    final isbn = tester.getRect(find.widgetWithText(TextField, 'ISBN-13'));
+    final status = tester.getRect(
+      find.widgetWithText(
+        DropdownButtonFormField<String>,
+        'Publication status',
+      ),
+    );
+    final release = tester.getRect(
+      find.widgetWithText(TextField, 'Release date'),
+    );
+    final description = tester.getRect(
+      find.widgetWithText(TextField, 'Description'),
+    );
+
+    expect(format.top - title.bottom, greaterThanOrEqualTo(16));
+    expect(format.top, closeTo(language.top, 0.1));
+    expect(language.left - format.right, greaterThanOrEqualTo(16));
+    expect(isbn.top - format.bottom, greaterThanOrEqualTo(16));
+    expect(isbn.top, closeTo(status.top, 0.1));
+    expect(status.left - isbn.right, greaterThanOrEqualTo(16));
+    expect(release.top - isbn.bottom, greaterThanOrEqualTo(16));
+    expect(description.top - release.bottom, greaterThanOrEqualTo(16));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('edition form stacks and stays usable with enlarged text', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(720, 600);
+    tester.view.devicePixelRatio = 1;
+    tester.platformDispatcher.textScaleFactorTestValue = 1.8;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    CatalogEdition? saved;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildBookalogTheme(Brightness.light),
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () async {
+                saved = await showDialog<CatalogEdition>(
+                  context: context,
+                  builder: (context) => EditionMetadataDialog(
+                    repository: repository,
+                    edition: null,
+                  ),
+                );
+              },
+              child: const Text('Open editor'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open editor'));
+    await tester.pumpAndSettle();
+
+    final format = tester.getRect(
+      find.widgetWithText(DropdownButtonFormField<String>, 'Format'),
+    );
+    final language = tester.getRect(
+      find.widgetWithText(TextField, 'Language code'),
+    );
+    expect(language.top - format.bottom, greaterThanOrEqualTo(16));
+    final scrollbar = find.descendant(
+      of: find.byType(EditionMetadataDialog),
+      matching: find.byType(Scrollbar),
+    );
+    expect(scrollbar, findsOneWidget);
+    expect(tester.widget<Scrollbar>(scrollbar).thumbVisibility, isTrue);
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(find.text('Create edition'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Enter a title between 1 and 500 characters.').hitTestable(),
+      findsOneWidget,
+    );
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Title'),
+      'A usable catalog form',
+    );
+    await tester.ensureVisible(find.widgetWithText(TextField, 'Description'));
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Description'),
+      'The draft remains editable in a short window.',
+    );
+    repository.createError = StateError('Unable to save. ${'details ' * 150}');
+    await tester.tap(find.text('Create edition'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Unable to save.'), findsOneWidget);
+    expect(find.text('Create edition').hitTestable(), findsOneWidget);
+    final errorScroll = find.descendant(
+      of: find.byType(ShelfDialogTitle),
+      matching: find.byType(Scrollable),
+    );
+    final position = tester.state<ScrollableState>(errorScroll).position;
+    expect(position.maxScrollExtent, greaterThan(0));
+    await tester.drag(errorScroll, const Offset(0, -3000));
+    await tester.pumpAndSettle();
+    expect(position.pixels, position.maxScrollExtent);
+    expect(tester.takeException(), isNull);
+
+    repository.createError = null;
+    await tester.tap(find.text('Create edition'));
+    await tester.pumpAndSettle();
+    expect(saved?.title, 'A usable catalog form');
+    expect(saved?.description, 'The draft remains editable in a short window.');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('filter validation stays visible in a short dialog', (
+    tester,
+  ) async {
+    tester.platformDispatcher.textScaleFactorTestValue = 1.5;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await openCatalog(
+      tester,
+      width: 1280,
+      height: 600,
+      theme: buildBookalogTheme(Brightness.light),
+    );
+    await tester.tap(find.text('Filters'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Release date starts with'),
+      'not-a-date',
+    );
+    await tester.tap(find.text('Apply filters'));
+    await tester.pumpAndSettle();
+    expect(
+      find
+          .text('Use a real date in YYYY, YYYY-MM, or YYYY-MM-DD format.')
+          .hitTestable(),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('filter fields use the same spacing and logical groups', (
+    tester,
+  ) async {
+    await openCatalog(tester, theme: buildBookalogTheme(Brightness.light));
+    await tester.tap(find.text('Filters'));
+    await tester.pumpAndSettle();
+
+    final category = tester.getRect(
+      find.widgetWithText(TextField, 'Category contains'),
+    );
+    final contributor = tester.getRect(
+      find.widgetWithText(TextField, 'Contributor contains'),
+    );
+    final from = tester.getRect(
+      find.widgetWithText(TextField, 'Release range: from'),
+    );
+    final through = tester.getRect(
+      find.widgetWithText(TextField, 'Release range: through'),
+    );
+    expect(category.top, closeTo(contributor.top, 0.1));
+    expect(contributor.left - category.right, greaterThanOrEqualTo(16));
+    expect(from.top, closeTo(through.top, 0.1));
+    expect(through.left - from.right, greaterThanOrEqualTo(16));
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Release range: from'),
+      '2030-01-01',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Release range: through'),
+      '2030-12-31',
+    );
+    await tester.tap(find.text('Apply filters'));
+    await tester.pumpAndSettle();
+    expect(find.text('Filter catalog'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('membership dialogs separate controls and fit short windows', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(720, 520);
+    tester.view.devicePixelRatio = 1;
+    tester.platformDispatcher.textScaleFactorTestValue = 1.5;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildBookalogTheme(Brightness.light),
+        home: MembershipManagementScreen(
+          repository: repository,
+          currentUserId: 'current-user',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Add member'));
+    await tester.pumpAndSettle();
+
+    final email = tester.getRect(
+      find.widgetWithText(TextField, 'Account email'),
+    );
+    final role = tester.getRect(
+      find.widgetWithText(DropdownButtonFormField<CatalogRole>, 'Catalog role'),
+    );
+    expect(role.top - email.bottom, greaterThanOrEqualTo(16));
+    await tester.tap(find.text('Grant access'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Enter a valid account email address.').hitTestable(),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Change editor@example.invalid access'));
+    await tester.pumpAndSettle();
+    expect(find.text('Member access'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets(
@@ -427,6 +681,13 @@ void main() {
       );
       await tester.tap(find.text('Open editor'));
       await tester.pumpAndSettle();
+      final role = tester.getRect(
+        find.widgetWithText(TextField, 'Role for the next credit'),
+      );
+      final contributor = tester.getRect(
+        find.widgetWithText(TextField, 'Contributor name'),
+      );
+      expect(contributor.top - role.bottom, greaterThanOrEqualTo(16));
       await tester.enterText(
         find.widgetWithText(TextField, 'Contributor name'),
         'New Writer',

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'catalog.dart';
+import 'design.dart';
 import 'exchange.dart';
 import 'onix.dart';
 
@@ -387,52 +388,53 @@ class _CatalogExchangeScreenState extends State<CatalogExchangeScreen> {
                     : () => _export(CatalogExchangeFormat.csv),
                 child: const Text('Export CSV'),
               ),
-              const SizedBox(height: 16),
-              ExpansionTile(
-                tilePadding: EdgeInsets.zero,
-                title: const Text('ONIX 3.0 core profile'),
-                subtitle: const Text(
-                  'Provisional compatibility; review before sharing',
+            ],
+          ),
+          const SizedBox(height: shelfFormSpacing),
+          ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            title: const Text('ONIX 3.0 core profile'),
+            subtitle: const Text(
+              'Provisional compatibility; review before sharing',
+            ),
+            children: [
+              const Text(onixProfileNotice),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _publisher,
+                enabled: !_busy,
+                maxLength: 200,
+                decoration: const InputDecoration(
+                  labelText: 'Publisher name for this export',
+                  helperText: 'Used as publisher and message sender. Never inferred from your account.',
+                  helperMaxLines: 3,
                 ),
-                children: [
-                  const Text(onixProfileNotice),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _publisher,
-                    enabled: !_busy,
-                    maxLength: 200,
-                    decoration: const InputDecoration(
-                      labelText: 'Publisher name for this export',
-                      helperText: 'Used as publisher and message sender. Never inferred from your account.',
-                      helperMaxLines: 3,
-                    ),
-                    onChanged: (_) => setState(() {}),
-                  ),
-                  CheckboxListTile(
-                    contentPadding: EdgeInsets.zero,
-                    controlAffinity: ListTileControlAffinity.leading,
-                    value: _onixAcknowledged,
-                    onChanged: _busy
-                        ? null
-                        : (value) => setState(() => _onixAcknowledged = value!),
-                    title: const Text(
-                      'I understand the ONIX profile limits and have confirmed the publisher.',
-                    ),
-                  ),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: OutlinedButton(
-                      onPressed:
-                          _busy ||
-                              !_exportAcknowledged ||
-                              !_onixAcknowledged ||
-                              _publisher.text.trim().isEmpty
-                          ? null
-                          : () => _export(CatalogExchangeFormat.onix),
-                      child: const Text('Export ONIX'),
-                    ),
-                  ),
-                ],
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 8),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                value: _onixAcknowledged,
+                onChanged: _busy
+                    ? null
+                    : (value) => setState(() => _onixAcknowledged = value!),
+                title: const Text(
+                  'I understand the ONIX profile limits and have confirmed the publisher.',
+                ),
+              ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton(
+                  onPressed:
+                      _busy ||
+                          !_exportAcknowledged ||
+                          !_onixAcknowledged ||
+                          _publisher.text.trim().isEmpty
+                      ? null
+                      : () => _export(CatalogExchangeFormat.onix),
+                  child: const Text('Export ONIX'),
+                ),
               ),
             ],
           ),

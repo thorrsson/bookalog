@@ -1,0 +1,11 @@
+{
+  "packages": {
+    "app": {
+      "release-type": "dart",
+      "component": "desktop",
+      "include-component-in-tag": true,
+      "draft": true,
+      "force-tag-creation": true
+    }
+  }
+}

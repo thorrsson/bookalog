@@ -6,11 +6,19 @@ require 'open3'
 require 'rbconfig'
 require 'tmpdir'
 
+# Packages and verifies a drag-to-Applications disk image.
+#
+#   ruby script/package-macos.rb [path/to/Bookalog Catalog.app] [path/to/image.dmg]
+#
+# Defaults to the unsigned build-check bundle and image. The release scripts
+# pass a signed bundle and a versioned image path.
+
+abort 'usage: ruby script/package-macos.rb [app] [image]' if ARGV.length > 2
 abort 'macOS disk-image packaging requires a macOS host.' unless RbConfig::CONFIG.fetch('host_os').include?('darwin')
 root = File.expand_path('..', __dir__)
-bundle = File.join(root, 'app/build/macos/Build/Products/Release/Bookalog Catalog.app')
-output = File.join(root, '.cache/desktop')
-image = File.join(output, 'bookalog-macos-unsigned.dmg')
+bundle = File.expand_path(ARGV[0] || 'app/build/macos/Build/Products/Release/Bookalog Catalog.app', root)
+image = File.expand_path(ARGV[1] || '.cache/desktop/bookalog-macos-unsigned.dmg', root)
+output = File.dirname(image)
 abort 'Build the macOS app before packaging it.' unless File.directory?(bundle)
 FileUtils.mkdir_p(output)
 
@@ -50,4 +58,4 @@ ensure
   FileUtils.remove_entry_secure(stage)
 end
 
-puts "Verified unsigned disk image: #{image}"
+puts "Verified disk image: #{image}"

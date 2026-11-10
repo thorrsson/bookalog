@@ -1,0 +1,26 @@
+{
+  "scope": "Synthetic comparison only; not a production API commitment",
+  "dataset": { "editions": 5000, "works": 2500, "synthetic": true },
+  "offline": { "membership_check_required": true, "maximum_age_hours": 24, "writes_allowed": false },
+  "operations": {
+    "membership": {
+      "google_cloud": "GET /membership",
+      "supabase": "GET /rest/v1/rpc/current_catalog_role",
+      "result": "current active role; not an offline lease"
+    },
+    "list": {
+      "google_cloud": "GET /editions",
+      "supabase": "GET /rest/v1/editions?select=record&order=id",
+      "authorization": "active membership",
+      "pagination": "Supabase clients must fetch all pages; default API row limits are not completeness"
+    },
+    "update_title": {
+      "google_cloud": "PATCH /editions/{id}",
+      "supabase": "POST /rest/v1/rpc/update_edition_title",
+      "authorization": "active editor or administrator",
+      "precondition": "expected_revision",
+      "atomic": ["edition change", "audit event"]
+    }
+  },
+  "unimplemented": ["Google sign-in", "private cover operations", "member administration", "full edit/import commit", "server-signed offline lease"]
+}
